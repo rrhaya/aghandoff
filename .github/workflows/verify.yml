@@ -27,26 +27,16 @@ jobs:
       - name: Install Rust
         run: rustup toolchain install 1.85.1 --profile minimal --component clippy --component rustfmt
 
-      - name: Format Rust source
-        run: cargo +1.85.1 fmt --all
-
       - name: Run offline integration tests
         run: cargo +1.85.1 test --all-targets
 
       - name: Build release binary
         run: cargo +1.85.1 build --release --locked
 
+      - name: Check release CLI
+        run: |
+          ./target/release/aghandoff --help
+          ./target/release/aghandoff --version
+
       - name: Check Clippy
         run: cargo +1.85.1 clippy --all-targets --locked -- -D warnings
-
-      - name: Save verified build inputs
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: verified-build-inputs
-          path: |
-            Cargo.lock
-            src/main.rs
-            tests/cli.rs
-          retention-days: 1
-          if-no-files-found: error

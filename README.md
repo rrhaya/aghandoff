@@ -90,7 +90,7 @@ cargo clippy --all-targets -- -D warnings
 
 The suite includes 13 offline integration tests using a fake Claude CLI and synthetic data. It covers profile separation, shared transcripts and memory, resume failures, and process locking.
 
-Initial implementation: the Rust build, integration tests, and live account handoff have not yet been verified.
+Release builds, Clippy, and all 13 offline integration tests pass on Ubuntu 24.04 and macOS 14 with Rust 1.85.1. Live account handoff still needs manual verification.
 
 [Design notes](docs/design.md) · [Manual acceptance test](docs/manual-test.md)
 
