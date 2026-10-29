@@ -1,0 +1,6 @@
+/target/
+/.aghandoff/
+*.env
+.env*
+*.key
+*.pem

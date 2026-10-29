@@ -1,0 +1,33 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-tests:
+    name: Build and test with synthetic accounts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        run: rustup toolchain install 1.85.1 --profile minimal --component clippy
+
+      - name: Run offline integration tests
+        run: cargo +1.85.1 test --all-targets
+
+      - name: Build release binary
+        run: cargo +1.85.1 build --release --locked
+
+      - name: Check Clippy
+        run: cargo +1.85.1 clippy --all-targets --locked -- -D warnings

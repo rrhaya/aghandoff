@@ -1,0 +1,24 @@
+[package]
+name = "aghandoff"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+description = "Resume Claude Code conversations across isolated account profiles"
+license = "MIT"
+repository = "https://github.com/rrhaya/aghandoff"
+publish = false
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+fs2 = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+uuid = { version = "1", features = ["v4", "serde"] }
+signal-hook = "0.3"
+libc = "0.2"
+
+[profile.release]
+lto = "thin"
+strip = true
