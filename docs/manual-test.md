@@ -6,7 +6,7 @@ Use your own accounts and a small synthetic project. Offline integration tests c
 
 ## Prerequisites
 
-- Run `cargo fmt`, then pass `cargo fmt --check`, `cargo test`, and `cargo clippy --all-targets -- -D warnings`.
+- Pass `cargo fmt --check`, `cargo test --all-targets --locked`, and `cargo clippy --all-targets --locked -- -D warnings`.
 - Use the latest stable Claude Code.
 - Prepare a dedicated empty data directory and a synthetic project directory.
 - Keep existing Claude configuration, history, and credentials in place.

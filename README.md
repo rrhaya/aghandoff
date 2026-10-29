@@ -11,10 +11,12 @@ A Rust CLI for using multiple Claude Code subscription accounts with separate lo
 Requires macOS or Linux, Rust 1.85+, and Claude Code 2.1.268+ (stable). Use the latest stable Claude Code for initial testing.
 
 ```sh
-cargo build --release
+git clone https://github.com/rrhaya/aghandoff.git
+cd aghandoff
+cargo install --path . --locked
 ```
 
-The examples below assume the built binary, `target/release/aghandoff`, is on your `PATH`.
+This installs `aghandoff` in Cargo's binary directory. Make sure that directory is on your `PATH`.
 
 ```sh
 # Create two profiles and sign in through Claude's own login flow.
@@ -84,11 +86,13 @@ Restored context is subject to Claude's session retention and account or organiz
 ```sh
 cargo fmt
 cargo fmt --check
-cargo test
-cargo clippy --all-targets -- -D warnings
+cargo test --all-targets --locked
+cargo clippy --all-targets --locked -- -D warnings
 ```
 
 The suite includes 13 offline integration tests using a fake Claude CLI and synthetic data. It covers profile separation, shared transcripts and memory, resume failures, and process locking.
+
+`Cargo.lock` pins the dependency versions used in CI.
 
 Release builds, Clippy, and all 13 offline integration tests pass on Ubuntu 24.04 and macOS 14 with Rust 1.85.1. Live account handoff still needs manual verification.
 

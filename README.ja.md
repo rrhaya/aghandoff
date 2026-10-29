@@ -11,10 +11,12 @@ Claude Codeのアカウントを替えて、同じ会話を続ける。
 macOSまたはLinux、Rust 1.85以上、Claude Code 2.1.268以上のstable版が必要です。初回の確認には最新のstable版を使ってください。
 
 ```sh
-cargo build --release
+git clone https://github.com/rrhaya/aghandoff.git
+cd aghandoff
+cargo install --path . --locked
 ```
 
-以下では、ビルドした `target/release/aghandoff` が `PATH` にあるものとします。
+Cargoのバイナリ用ディレクトリに `aghandoff` をインストールします。そのディレクトリが `PATH` に含まれていることを確認してください。
 
 ```sh
 # 2つのプロファイルを作り、Claudeのログイン画面から認証します。
@@ -84,11 +86,13 @@ aghandoff --claude-bin /path/to/claude status personal
 ```sh
 cargo fmt
 cargo fmt --check
-cargo test
-cargo clippy --all-targets -- -D warnings
+cargo test --all-targets --locked
+cargo clippy --all-targets --locked -- -D warnings
 ```
 
 fake Claude CLIと合成データを使った統合テストを13件用意しています。プロファイルの分離、会話・メモリの共有、再開失敗、プロセスの排他を対象としています。
+
+`Cargo.lock`でCIに使用する依存バージョンを固定しています。
 
 Rust 1.85.1を使い、Ubuntu 24.04とmacOS 14でリリースビルド・Clippy・13件すべての統合テストが通過しています。実アカウント間の引き継ぎは手動検証が必要です。
 
