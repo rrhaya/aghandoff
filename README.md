@@ -6,9 +6,58 @@ English · [日本語](README.ja.md)
 
 A Rust CLI for using multiple Claude Code subscription accounts with separate logins and shared workspace conversations. Choose an account when you start, then resume the same session with another account after exiting Claude.
 
-## Quick start
+## Requirements
 
-Requires macOS or Linux, Rust 1.85+, and Claude Code 2.1.268+ (stable). Use the latest stable Claude Code for initial testing.
+- macOS or Linux
+- Git
+- Rust 1.85+ with Cargo
+- Claude Code 2.1.268+ (stable), with access to a Claude subscription
+
+Rust is needed to build and install aghandoff. The installed binary runs without the Rust toolchain. Use the latest stable Claude Code for initial testing.
+
+<details>
+<summary>Install Rust with rustup</summary>
+
+[rustup](https://rust-lang.org/tools/install/) is Rust's official recommended installer.
+
+```sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Follow the installer prompts, then reopen your terminal and check:
+
+```sh
+rustc --version
+cargo --version
+```
+
+On macOS, if the build reports a missing linker, install the [Command Line Tools](https://developer.apple.com/documentation/xcode/installing-the-command-line-tools/) with `xcode-select --install`, then retry.
+
+</details>
+
+<details>
+<summary>Use mise instead (optional)</summary>
+
+If you already use [mise](https://mise.jdx.dev/lang/rust.html), you can manage Rust with it. mise uses rustup internally and installs it if needed, so a separate rustup installation is unnecessary.
+
+```sh
+mise use -g rust@stable
+mise exec -- rustc --version
+mise exec -- cargo --version
+```
+
+`-g` sets your personal default Rust version. After cloning the repository and entering its directory as shown below, install and check aghandoff with:
+
+```sh
+mise exec -- cargo install --path . --locked
+mise exec -- aghandoff --help
+```
+
+If mise is not activated in your shell, prefix subsequent `aghandoff` commands with `mise exec --` as well. mise is optional; rustup alone is sufficient.
+
+</details>
+
+## Quick start
 
 ```sh
 git clone https://github.com/rrhaya/aghandoff.git
@@ -16,7 +65,11 @@ cd aghandoff
 cargo install --path . --locked
 ```
 
-This installs `aghandoff` in Cargo's binary directory. Make sure that directory is on your `PATH`.
+This installs `aghandoff` in Cargo's binary directory, normally `~/.cargo/bin`. Make sure that directory is on your `PATH`, or use `mise exec --` as described above.
+
+```sh
+aghandoff --help
+```
 
 ```sh
 # Create two profiles and sign in through Claude's own login flow.

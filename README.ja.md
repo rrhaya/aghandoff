@@ -6,9 +6,58 @@ Claude Codeのアカウントを替えて、同じ会話を続ける。
 
 アカウントごとのログインを分離し、作業領域の会話を共有するRust CLIです。起動時に使うアカウントを選び、Claudeを終了した後、別のアカウントで同じセッションを再開できます。
 
-## クイックスタート
+## 必要なもの
 
-macOSまたはLinux、Rust 1.85以上、Claude Code 2.1.268以上のstable版が必要です。初回の確認には最新のstable版を使ってください。
+- macOSまたはLinux
+- Git
+- Rust 1.85以上（Cargoを含む）
+- Claude Code 2.1.268以上のstable版と、利用可能なClaudeサブスクリプション
+
+Rustはaghandoffのビルド・インストール時に必要です。インストール済みの実行ファイルを使う際には不要です。Claude Codeは初回の確認に最新のstable版を使ってください。
+
+<details>
+<summary>rustupでRustをインストールする</summary>
+
+[rustup](https://rust-lang.org/tools/install/)はRust公式が推奨するインストーラーです。
+
+```sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+案内に従ってインストールした後、ターミナルを開き直して確認します。
+
+```sh
+rustc --version
+cargo --version
+```
+
+macOSでビルド時にリンカーが見つからない場合は、`xcode-select --install`で[Command Line Tools](https://developer.apple.com/documentation/xcode/installing-the-command-line-tools/)を導入してから再実行してください。
+
+</details>
+
+<details>
+<summary>miseを使う場合（任意）</summary>
+
+すでに[mise](https://mise.jdx.dev/lang/rust.html)を使っている場合は、Rustもmiseで管理できます。miseは内部でrustupを使用し、必要に応じて導入するため、rustupを別途インストールする必要はありません。
+
+```sh
+mise use -g rust@stable
+mise exec -- rustc --version
+mise exec -- cargo --version
+```
+
+`-g`は、このユーザーの既定のRustバージョンを設定します。以下の手順でリポジトリをcloneし、ディレクトリへ移動した後は、次のコマンドでaghandoffをインストール・確認できます。
+
+```sh
+mise exec -- cargo install --path . --locked
+mise exec -- aghandoff --help
+```
+
+シェルでmiseを有効化していない場合は、この後の`aghandoff`コマンドにも`mise exec --`を付けてください。miseは必須ではなく、rustupのみでも利用できます。
+
+</details>
+
+## クイックスタート
 
 ```sh
 git clone https://github.com/rrhaya/aghandoff.git
@@ -16,7 +65,11 @@ cd aghandoff
 cargo install --path . --locked
 ```
 
-Cargoのバイナリ用ディレクトリに `aghandoff` をインストールします。そのディレクトリが `PATH` に含まれていることを確認してください。
+Cargoのバイナリ用ディレクトリ（通常は`~/.cargo/bin`）に `aghandoff` をインストールします。そのディレクトリが `PATH` に含まれていることを確認するか、上記の`mise exec --`を使ってください。
+
+```sh
+aghandoff --help
+```
 
 ```sh
 # 2つのプロファイルを作り、Claudeのログイン画面から認証します。
