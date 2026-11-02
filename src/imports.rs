@@ -478,9 +478,7 @@ impl Plan {
                     if meta.is_dir()
                         && !meta.file_type().is_symlink()
                         && meta.permissions().mode() & 0o077 == 0 =>
-                {
-                    ()
-                }
+                {}
                 Ok(_) => {
                     bail!("destination directory is not private or is a symlink: {relative:?}")
                 }
