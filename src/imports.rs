@@ -474,13 +474,12 @@ impl Plan {
     fn check(&self, target: &Path) -> Result<()> {
         for relative in &self.directories {
             match fs::symlink_metadata(target.join(relative)) {
-                Ok(meta)
-                    if meta.is_dir()
-                        && !meta.file_type().is_symlink()
-                        && meta.permissions().mode() & 0o077 == 0 =>
-                {}
+                // The checked target root is private. Native Claude may create
+                // readable subdirectories inside it; those remain inaccessible
+                // to other users through the private parent.
+                Ok(meta) if meta.is_dir() && !meta.file_type().is_symlink() => {}
                 Ok(_) => {
-                    bail!("destination directory is not private or is a symlink: {relative:?}")
+                    bail!("destination is not a real directory: {relative:?}")
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
                 Err(e) => return Err(e.into()),

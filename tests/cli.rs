@@ -616,6 +616,10 @@ fn bad_transcripts_are_rejected_without_logging_contents_or_partial_imports() {
 fn copies_personal_instructions_skills_rules_and_only_basic_preferences() {
     let f = Fixture::new();
     f.setup();
+    let profile = f.data.join("accounts/one");
+    // Native Claude can create readable subdirectories under the private profile.
+    fs::create_dir(profile.join("skills")).unwrap();
+    fs::set_permissions(profile.join("skills"), fs::Permissions::from_mode(0o755)).unwrap();
     let source = f.temp.path().join("personal config");
     let skill = source.join("local-skills/review");
     fs::create_dir_all(skill.join("scripts")).unwrap();
@@ -662,7 +666,6 @@ fn copies_personal_instructions_skills_rules_and_only_basic_preferences() {
     ];
     let out = f.ok(&args);
     assert!(!String::from_utf8_lossy(&out.stdout).contains("synthetic-secret-do-not-log"));
-    let profile = f.data.join("accounts/one");
     assert!(!profile.join("CLAUDE.md").exists());
     let mut apply = args.to_vec();
     apply.push("--apply");
