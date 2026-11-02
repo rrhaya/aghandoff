@@ -113,13 +113,21 @@ pub(crate) fn execute(store: &Store, registry: &Registry, action: ImportAction) 
                 // never a registered transcript that was not copied yet.
                 if write_json(&history_path, &history).is_err() {
                     installed.keep();
-                    bail!("could not save session metadata; copied files were retained for recovery");
+                    bail!(
+                        "could not save session metadata; copied files were retained for recovery"
+                    );
                 }
                 installed.keep();
-                println!("Imported {} sessions. Source files were left unchanged.", ids.len());
+                println!(
+                    "Imported {} sessions. Source files were left unchanged.",
+                    ids.len()
+                );
                 println!("Resume with: aghandoff resume {workspace} {account} {selected}");
             } else {
-                println!("Preview only. Repeat with --apply to import {} sessions.", ids.len());
+                println!(
+                    "Preview only. Repeat with --apply to import {} sessions.",
+                    ids.len()
+                );
             }
         }
         ImportAction::Config {
@@ -142,7 +150,10 @@ pub(crate) fn execute(store: &Store, registry: &Registry, action: ImportAction) 
                 plan.tree(&source, Path::new("rules"), 0)?;
             }
             for path in skill {
-                let name = path.file_name().and_then(|n| n.to_str()).context("invalid skill name")?;
+                let name = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .context("invalid skill name")?;
                 valid_skill_name(name)?;
                 if name == "synced" || name == "anthropic-skills" {
                     bail!("reserved Claude skill name");
@@ -160,9 +171,17 @@ pub(crate) fn execute(store: &Store, registry: &Registry, action: ImportAction) 
                 let staged = plan.stage.path().join(raw);
                 let value: serde_json::Value = serde_json::from_slice(&fs::read(&staged)?)
                     .map_err(|_| anyhow::anyhow!("invalid settings JSON; no changes made"))?;
-                let original = value.as_object().context("settings must be a JSON object")?;
+                let original = value
+                    .as_object()
+                    .context("settings must be a JSON object")?;
                 let mut selected = serde_json::Map::new();
-                for key in ["model", "language", "outputStyle", "alwaysThinkingEnabled", "effortLevel"] {
+                for key in [
+                    "model",
+                    "language",
+                    "outputStyle",
+                    "alwaysThinkingEnabled",
+                    "effortLevel",
+                ] {
                     if let Some(value) = original.get(key) {
                         let valid = if key == "alwaysThinkingEnabled" {
                             value.is_boolean()
@@ -207,8 +226,8 @@ fn source_root(store: &Store, path: &Path, directory: bool) -> Result<PathBuf> {
     // links are refused, so an imported skill cannot silently reach outside itself.
     let source = fs::canonicalize(path).context("selected source does not exist")?;
     allowed_name(&source)?;
-    if source.starts_with(&store.root) {
-        bail!("select an external source, not an aghandoff-managed path");
+    if source.starts_with(&store.root) || (directory && store.root.starts_with(&source)) {
+        bail!("source overlaps aghandoff storage; select an external file or directory");
     }
     let meta = fs::metadata(&source)?;
     if (directory && !meta.is_dir()) || (!directory && !meta.is_file()) {
@@ -219,13 +238,38 @@ fn source_root(store: &Store, path: &Path, directory: bool) -> Result<PathBuf> {
 
 fn allowed_name(path: &Path) -> Result<()> {
     for component in path.components() {
-        let std::path::Component::Normal(component) = component else { continue };
-        let name = component.to_str().context("unsupported source name")?.to_ascii_lowercase();
-        if [".git", ".ssh", ".aws", ".azure", ".kube", "keychains", ".credentials.json", "credentials.json", "auth.json", ".claude.json", ".netrc", ".npmrc", ".git-credentials", "id_rsa", "id_ed25519", "secrets"].contains(&name.as_str())
-        || name == ".env"
-        || name.starts_with(".env.")
-        || [".env", ".key", ".pem", ".p12", ".pfx"].iter().any(|ext| name.ends_with(ext))
-    {
+        let std::path::Component::Normal(component) = component else {
+            continue;
+        };
+        let name = component
+            .to_str()
+            .context("unsupported source name")?
+            .to_ascii_lowercase();
+        if [
+            ".git",
+            ".ssh",
+            ".aws",
+            ".azure",
+            ".kube",
+            "keychains",
+            ".credentials.json",
+            "credentials.json",
+            "auth.json",
+            ".claude.json",
+            ".netrc",
+            ".npmrc",
+            ".git-credentials",
+            "id_rsa",
+            "id_ed25519",
+            "secrets",
+        ]
+        .contains(&name.as_str())
+            || name == ".env"
+            || name.starts_with(".env.")
+            || [".env", ".key", ".pem", ".p12", ".pfx"]
+                .iter()
+                .any(|ext| name.ends_with(ext))
+        {
             bail!("credential or secret file names are excluded from imports");
         }
     }
@@ -233,8 +277,11 @@ fn allowed_name(path: &Path) -> Result<()> {
 }
 
 fn valid_skill_name(name: &str) -> Result<()> {
-    if name.is_empty() || name.len() > 64
-        || !name.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-' || c == b'_')
+    if name.is_empty()
+        || name.len() > 64
+        || !name
+            .bytes()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-' || c == b'_')
         || !name.as_bytes()[0].is_ascii_alphanumeric()
     {
         bail!("skill directory name must start with a-z/0-9 and contain 1-64 lowercase letters, digits, - or _");
@@ -247,11 +294,16 @@ fn selected_sessions(source: &Path, requested: Vec<Uuid>) -> Result<BTreeSet<Uui
         fs::read_dir(source)?
             .map(|entry| {
                 let path = entry?.path();
-                Ok(path.file_name().and_then(|s| s.to_str()).and_then(|s| s.strip_suffix(".jsonl"))
+                Ok(path
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .and_then(|s| s.strip_suffix(".jsonl"))
                     .and_then(|s| Uuid::parse_str(s).ok().filter(|id| id.to_string() == s)))
             })
             .collect::<Result<Vec<_>>>()?
-            .into_iter().flatten().collect()
+            .into_iter()
+            .flatten()
+            .collect()
     } else {
         requested.into_iter().collect()
     };
@@ -275,7 +327,9 @@ fn validate_transcript(path: &Path, id: Uuid) -> Result<()> {
     let mut records = 0;
     loop {
         buffer.clear();
-        let bytes = (&mut reader).take(MAX_LINE + 1).read_until(b'\n', &mut buffer)?;
+        let bytes = (&mut reader)
+            .take(MAX_LINE + 1)
+            .read_until(b'\n', &mut buffer)?;
         if bytes == 0 {
             break;
         }
@@ -285,8 +339,9 @@ fn validate_transcript(path: &Path, id: Uuid) -> Result<()> {
         if buffer.iter().all(u8::is_ascii_whitespace) {
             continue;
         }
-        let value: serde_json::Value = serde_json::from_slice(&buffer)
-            .map_err(|_| anyhow::anyhow!("invalid transcript JSON; no changes made (contents hidden)"))?;
+        let value: serde_json::Value = serde_json::from_slice(&buffer).map_err(|_| {
+            anyhow::anyhow!("invalid transcript JSON; no changes made (contents hidden)")
+        })?;
         if !value.is_object() {
             bail!("transcript records must be JSON objects; no changes made");
         }
@@ -313,7 +368,9 @@ struct Plan {
 impl Plan {
     fn new(store: &Store) -> Result<Self> {
         Ok(Self {
-            stage: tempfile::Builder::new().prefix(".import-").tempdir_in(&store.root)?,
+            stage: tempfile::Builder::new()
+                .prefix(".import-")
+                .tempdir_in(&store.root)?,
             files: BTreeSet::new(),
             directories: BTreeSet::new(),
             bytes: 0,
@@ -350,7 +407,10 @@ impl Plan {
         if !regular_file(source)? {
             bail!("selected source file is missing");
         }
-        let mut input = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(source)?;
+        let mut input = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW)
+            .open(source)?;
         let before = input.metadata()?;
         if !before.is_file() || before.len() > MAX_BYTES - self.bytes {
             bail!("import exceeds the 512 MiB limit or contains a special file");
@@ -358,18 +418,35 @@ impl Plan {
         if let Some(parent) = relative.parent() {
             self.directory(parent)?;
         }
-        let mode = if before.permissions().mode() & 0o111 != 0 { 0o700 } else { 0o600 };
-        let mut output = OpenOptions::new().write(true).create_new(true).mode(mode)
+        let mode = if before.permissions().mode() & 0o111 != 0 {
+            0o700
+        } else {
+            0o600
+        };
+        let mut output = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(mode)
             .open(self.stage.path().join(relative))?;
-        let copied = std::io::copy(&mut (&mut input).take(MAX_BYTES - self.bytes + 1), &mut output)?;
+        let copied = std::io::copy(
+            &mut (&mut input).take(MAX_BYTES - self.bytes + 1),
+            &mut output,
+        )?;
         let after = input.metadata()?;
-        if copied != before.len() || before.len() != after.len() || before.modified()? != after.modified()? {
+        if copied != before.len()
+            || before.len() != after.len()
+            || before.modified()? != after.modified()?
+        {
             bail!("source changed while being copied; exit the source Claude session and retry");
         }
         output.sync_all()?;
         self.bytes += copied;
         self.files.insert(relative.to_path_buf());
-        Ok(before.modified()?.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs())
+        Ok(before
+            .modified()?
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs())
     }
 
     fn tree(&mut self, source: &Path, relative: &Path, depth: usize) -> Result<()> {
@@ -397,8 +474,16 @@ impl Plan {
     fn check(&self, target: &Path) -> Result<()> {
         for relative in &self.directories {
             match fs::symlink_metadata(target.join(relative)) {
-                Ok(meta) if meta.is_dir() && !meta.file_type().is_symlink() && meta.permissions().mode() & 0o077 == 0 => (),
-                Ok(_) => bail!("destination directory is not private or is a symlink: {relative:?}"),
+                Ok(meta)
+                    if meta.is_dir()
+                        && !meta.file_type().is_symlink()
+                        && meta.permissions().mode() & 0o077 == 0 =>
+                {
+                    ()
+                }
+                Ok(_) => {
+                    bail!("destination directory is not private or is a symlink: {relative:?}")
+                }
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
                 Err(e) => return Err(e.into()),
             }
@@ -419,13 +504,21 @@ impl Plan {
         for relative in &self.files {
             println!("  + {relative:?}");
         }
-        println!("{} files selected ({} source bytes).", self.files.len(), self.bytes);
+        println!(
+            "{} files selected ({} source bytes).",
+            self.files.len(),
+            self.bytes
+        );
         Ok(())
     }
 
     fn install(&self, target: &Path) -> Result<Installed> {
         self.check(target)?;
-        let mut installed = Installed { files: Vec::new(), directories: Vec::new(), keep: false };
+        let mut installed = Installed {
+            files: Vec::new(),
+            directories: Vec::new(),
+            keep: false,
+        };
         for relative in &self.directories {
             let path = target.join(relative);
             if !source_exists(&path)? {

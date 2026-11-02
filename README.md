@@ -167,7 +167,7 @@ cargo test --all-targets --locked
 cargo clippy --all-targets --locked -- -D warnings
 ```
 
-The suite includes 22 offline integration tests using a fake Claude CLI and synthetic data. It covers profile separation, shared transcripts and memory, resume failures, process locking, history migration, configuration selection, and import conflicts.
+The suite includes 24 offline integration tests using a fake Claude CLI and synthetic data. It covers profile separation, shared transcripts and memory, resume failures, process locking, history migration, configuration selection, import conflicts, and resource limits.
 
 `Cargo.lock` pins the dependency versions used in CI.
 
