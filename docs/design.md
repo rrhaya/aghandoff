@@ -43,7 +43,7 @@ The environment variables and resume flags are official Claude features. Sharing
 
 The implementation uses absolute symlink targets. Moving or renaming a store is not supported. Keep its path fixed, since the configuration directory also affects credential storage identity on macOS.
 
-aghandoff checks transcript existence and file type without parsing conversation contents. It rejects a workspace path that disappears or resolves to a different path, and refuses to overwrite corrupt metadata as if it were empty.
+Normal launch and listing check transcript existence and file type without parsing conversation contents. Explicit imports validate main JSONL records and optional session IDs, without interpreting the message schema or printing contents. aghandoff rejects a workspace path that disappears or resolves to a different path, and refuses to overwrite corrupt metadata as if it were empty.
 
 ## Session lifecycle
 
@@ -69,7 +69,15 @@ Account labels do not identify the underlying account. `configDirectory` verific
 
 Only profiles explicitly used in a registered workspace receive that workspace's storage link. The shared transcripts and memory may be sent under the selected account on resume. This layout separates storage; it does not isolate processes running as the same OS user.
 
-User settings, MCP credentials, extensions, and prompt history are not copied. Claude continues to apply project configuration and its own permission system.
+MCP credentials, extensions, and prompt history are not copied. Personal instructions, rules, selected skill directories, and five basic preferences can be explicitly copied with `import config`. Hooks, environment variables, permissions, endpoints, and plugin settings are excluded from settings import. Claude continues to apply project configuration and its own permission system.
+
+## Existing data import
+
+`import sessions` takes one explicitly selected external project-history directory. It stages selected UUID transcripts, matching related directories, and optional project memory, then registers the sessions. `import config` takes explicit file/directory arguments instead of scanning personal configuration or credential stores. Both preview by default and require `--apply` to install.
+
+Imports use the normal account/workspace locks, private staging, bounded copying, and no-clobber file installation. Source files stay untouched. Conflicts are preflighted for the entire selection; existing files are never overwritten. Errors during installation roll back only files and empty directories created by that attempt. A process crash or a failed session-metadata commit can leave unregistered files; metadata-save failures retain copies for recovery. This is not an atomic filesystem transaction across crashes.
+
+See the [import guide](import.md) for formats, configuration selection, limits, and external design references.
 
 ## Concurrency and recovery
 
@@ -79,7 +87,7 @@ SIGKILL or a wrapper crash can leave a child running after its lock is released.
 
 ## Deferred work
 
-- Importing existing Claude settings and conversations, with explicit selection and non-destructive diffs.
+- Live synchronization and conflict-aware updates of imported personal configuration.
 - Usage snapshots from the official status line, including observation times and explicit unknown states.
 - Codex support and cross-agent transcript conversion.
 - Stronger process tracking and recovery after wrapper crashes.

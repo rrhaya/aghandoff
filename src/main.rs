@@ -1,5 +1,5 @@
 #[cfg(not(unix))]
-compile_error!("aghandoff 0.1 supports macOS and Linux only");
+compile_error!("aghandoff supports macOS and Linux only");
 
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
@@ -19,6 +19,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use uuid::Uuid;
+
+mod imports;
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -61,6 +63,11 @@ enum Action {
     Continue { workspace: String, account: String },
     /// List session IDs and last selected profiles; never reads conversation contents.
     Sessions { workspace: String },
+    /// Preview or apply a copy of selected existing sessions and personal configuration.
+    Import {
+        #[command(subcommand)]
+        command: imports::ImportAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -639,6 +646,10 @@ fn execute(cli: Cli) -> Result<i32> {
                     }
                 );
             }
+        }
+        Action::Import { command } => {
+            drop(registry_lock);
+            imports::execute(&store, &registry, command)?;
         }
     }
     Ok(0)

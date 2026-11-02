@@ -90,6 +90,28 @@ aghandoff continue myapp second
 
 Inside Claude, use `/status` to confirm the account before sending a message. Profile names are local labels; signing into the same account under two labels does not create separate accounts.
 
+## Bring your existing setup
+
+Preview conversations saved before aghandoff, then copy them with `--apply`:
+
+```sh
+aghandoff import sessions myapp personal --from /path/to/old/project-history
+aghandoff import sessions myapp personal --from /path/to/old/project-history --apply
+```
+
+Select one or more IDs with `--session <uuid>`, and add `--with-memory` to include the project's auto memory. The source is one directory under your normal `~/.claude/projects/`. The command prints how to resume the imported session.
+
+Personal instructions and skills can be copied into each account profile:
+
+```sh
+aghandoff import config personal --instructions ~/.claude/CLAUDE.md --skill ~/.claude/skills/review
+# After reviewing the preview, repeat with --apply.
+```
+
+You can select a personal `AGENTS.md` or a skill in another local directory instead. `--rules <dir>` copies personal rules; `--settings <file>` copies only five basic preferences. Authentication, hooks, environment variables, MCP configuration, and permission settings are excluded. Existing files are never overwritten. These are snapshots, not live synchronization; repeat for other profiles as needed.
+
+Project instructions and `.claude/skills/` continue to load through Claude's normal rules. [Import guide](docs/import.md) covers selection, conflicts, and limits.
+
 ## Commands
 
 | Command | Purpose |
@@ -102,6 +124,8 @@ Inside Claude, use `/status` to confirm the account before sending a message. Pr
 | `continue <workspace> <account>` | Resume the last successfully saved session |
 | `resume <workspace> <account> <session-id>` | Resume a specific registered session |
 | `sessions <workspace>` | List session IDs and launch metadata |
+| `import sessions <workspace> <account> --from <dir>` | Preview existing native conversations; add `--apply` to copy |
+| `import config <account> [options]` | Preview selected personal instructions, skills, rules, and preferences |
 
 Names use lowercase letters, digits, `-`, or `_`, begin with a letter or digit, and contain up to 48 characters.
 
@@ -109,7 +133,7 @@ Names use lowercase letters, digits, `-`, or `_`, begin with a letter or digit, 
 
 ## How it works
 
-Each profile has its own `CLAUDE_CONFIG_DIR`. Registered workspaces share conversation files and auto memory through a workspace-specific link, and Claude resumes them using the original session ID. Authentication, user settings, MCP credentials, extensions, and prompt history remain separate.
+Each profile has its own `CLAUDE_CONFIG_DIR`. Registered workspaces share conversation files and auto memory through a workspace-specific link, and Claude resumes them using the original session ID. Authentication, MCP credentials, extensions, and prompt history remain separate. Personal settings remain separate unless explicitly copied with `import config`.
 
 Claude handles login, credential storage, and refresh. aghandoff checks Claude's authentication status without opening credential files or the OS keychain. It adds no proxy and holds account and workspace locks while a managed foreground session runs.
 
@@ -126,9 +150,9 @@ aghandoff --claude-bin /path/to/claude status personal
 
 ## Current scope
 
-- Claude subscription logins and sessions created through aghandoff.
+- Claude subscription logins, sessions created through aghandoff, and imported native transcripts.
 - Account changes after exiting Claude; managed foreground sessions only.
-- Existing history import, Codex support, and account usage dashboards are planned.
+- Selected local history and personal configuration import. Codex support and account usage dashboards are planned.
 
 Use aghandoff's `run` and `resume` to change conversations. Session changes made with Claude's `/clear` or `/resume` are not tracked. Check usage with Claude's `/usage` for now.
 
@@ -143,11 +167,11 @@ cargo test --all-targets --locked
 cargo clippy --all-targets --locked -- -D warnings
 ```
 
-The suite includes 13 offline integration tests using a fake Claude CLI and synthetic data. It covers profile separation, shared transcripts and memory, resume failures, and process locking.
+The suite includes 24 offline integration tests using a fake Claude CLI and synthetic data. It covers profile separation, shared transcripts and memory, resume failures, process locking, history migration, configuration selection, import conflicts, and resource limits.
 
 `Cargo.lock` pins the dependency versions used in CI.
 
-Release builds, Clippy, and all 13 offline integration tests pass on Ubuntu 24.04 and macOS 14 with Rust 1.85.1. Live account handoff still needs manual verification.
+CI checks release builds, formatting, Clippy, and all offline integration tests on Ubuntu 24.04 and macOS 14 with Rust 1.85.1. Live account handoff and imported transcript compatibility still need manual verification.
 
 [Design notes](docs/design.md) · [Manual acceptance test](docs/manual-test.md)
 

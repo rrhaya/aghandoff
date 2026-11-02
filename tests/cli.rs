@@ -425,3 +425,539 @@ fn failed_login_propagates_exit_and_does_not_mark_profile_authenticated() {
         .status
         .success());
 }
+
+const OLD_SESSION: &str = "74af620e-0a44-4a9a-830e-a33475c013aa";
+const OTHER_SESSION: &str = "4f2d65b9-f18f-4d8e-8959-2b0260960081";
+
+fn legacy_session(f: &Fixture, id: &str) -> PathBuf {
+    let source = f.temp.path().join("old Claude project");
+    fs::create_dir_all(&source).unwrap();
+    fs::write(source.join(format!("{id}.jsonl")), format!("{{\"type\":\"user\",\"sessionId\":\"{id}\",\"message\":{{\"role\":\"user\",\"content\":\"synthetic old context\"}}}}\n")).unwrap();
+    source
+}
+
+#[test]
+fn imports_existing_sessions_related_files_and_memory_then_resumes_across_profiles() {
+    let f = Fixture::new();
+    f.setup();
+    let source = legacy_session(&f, OLD_SESSION);
+    let related = source.join(OLD_SESSION).join("subagents");
+    fs::create_dir_all(&related).unwrap();
+    fs::write(
+        related.join("agent-synthetic.jsonl"),
+        "synthetic related data",
+    )
+    .unwrap();
+    fs::create_dir(source.join("memory")).unwrap();
+    fs::write(source.join("memory/MEMORY.md"), "synthetic old memory").unwrap();
+    // A global credential file is unrelated to the selected project and never enumerated.
+    fs::write(
+        f.temp.path().join(".credentials.json"),
+        "synthetic excluded auth",
+    )
+    .unwrap();
+    let original = fs::read(source.join(format!("{OLD_SESSION}.jsonl"))).unwrap();
+    let args = [
+        "import",
+        "sessions",
+        "demo",
+        "one",
+        "--from",
+        source.to_str().unwrap(),
+        "--with-memory",
+    ];
+    let out = f.ok(&args);
+    assert!(String::from_utf8_lossy(&out.stdout).contains("Preview only"));
+    assert!(!f.data.join("workspaces/demo/sessions.json").exists());
+    assert_eq!(
+        fs::read_dir(f.data.join("workspaces/demo/transcripts"))
+            .unwrap()
+            .count(),
+        0
+    );
+    let mut apply = args.to_vec();
+    apply.push("--apply");
+    f.ok(&apply);
+    let target = f.data.join("workspaces/demo/transcripts");
+    assert_eq!(
+        fs::read(target.join(format!("{OLD_SESSION}.jsonl"))).unwrap(),
+        original
+    );
+    assert_eq!(
+        fs::read_to_string(target.join("memory/MEMORY.md")).unwrap(),
+        "synthetic old memory"
+    );
+    assert!(target
+        .join(OLD_SESSION)
+        .join("subagents/agent-synthetic.jsonl")
+        .exists());
+    assert_eq!(f.history()["last"], OLD_SESSION);
+    assert!(f.history()["sessions"][OLD_SESSION]["exit_code"].is_null());
+    f.ok(&["continue", "demo", "two"]);
+    f.ok(&["resume", "demo", "three", OLD_SESSION]);
+    let updated = fs::read_to_string(target.join(format!("{OLD_SESSION}.jsonl"))).unwrap();
+    assert_eq!(updated.lines().count(), 3);
+    assert!(updated.contains("synthetic old context"));
+    assert_eq!(
+        fs::read(source.join(format!("{OLD_SESSION}.jsonl"))).unwrap(),
+        original
+    );
+    assert!(!target.join(".credentials.json").exists());
+    assert!(!f.command(&apply).output().unwrap().status.success());
+    assert_eq!(f.history()["sessions"][OLD_SESSION]["account"], "three");
+    assert!(!fs::read_dir(&f.data).unwrap().any(|e| e
+        .unwrap()
+        .file_name()
+        .to_string_lossy()
+        .starts_with(".import-")));
+}
+
+#[test]
+fn session_selection_excludes_other_sessions_and_memory_and_preserves_last() {
+    let f = Fixture::new();
+    f.setup();
+    f.ok(&["run", "demo", "one"]);
+    let previous = f.history()["last"].clone();
+    let source = legacy_session(&f, OLD_SESSION);
+    legacy_session(&f, OTHER_SESSION);
+    fs::create_dir(source.join("memory")).unwrap();
+    fs::write(source.join("memory/MEMORY.md"), "do not import").unwrap();
+    f.ok(&[
+        "import",
+        "sessions",
+        "demo",
+        "one",
+        "--from",
+        source.to_str().unwrap(),
+        "--session",
+        OLD_SESSION,
+        "--apply",
+    ]);
+    assert_eq!(f.history()["last"], previous);
+    assert_eq!(f.history()["sessions"].as_object().unwrap().len(), 2);
+    assert!(!f
+        .data
+        .join(format!("workspaces/demo/transcripts/{OTHER_SESSION}.jsonl"))
+        .exists());
+    assert_eq!(
+        fs::read_to_string(f.data.join("workspaces/demo/transcripts/memory/MEMORY.md")).unwrap(),
+        "synthetic memory"
+    );
+}
+
+#[test]
+fn importing_all_sessions_preflights_every_collision_before_writing() {
+    let f = Fixture::new();
+    f.setup();
+    let source = legacy_session(&f, OLD_SESSION);
+    legacy_session(&f, OTHER_SESSION);
+    let target = f.data.join("workspaces/demo/transcripts");
+    fs::write(target.join(format!("{OLD_SESSION}.jsonl")), "existing data").unwrap();
+    let out = f
+        .command(&[
+            "import",
+            "sessions",
+            "demo",
+            "one",
+            "--from",
+            source.to_str().unwrap(),
+            "--apply",
+        ])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("already exists"));
+    assert_eq!(
+        fs::read_to_string(target.join(format!("{OLD_SESSION}.jsonl"))).unwrap(),
+        "existing data"
+    );
+    assert!(!target.join(format!("{OTHER_SESSION}.jsonl")).exists());
+    assert!(!f.data.join("workspaces/demo/sessions.json").exists());
+}
+
+#[test]
+fn bad_transcripts_are_rejected_without_logging_contents_or_partial_imports() {
+    let f = Fixture::new();
+    f.setup();
+    let source = legacy_session(&f, OLD_SESSION);
+    let path = source.join(format!("{OLD_SESSION}.jsonl"));
+    for data in [
+        "synthetic-secret-do-not-log",
+        "[]\n",
+        "\n",
+        "{\"sessionId\":\"00000000-0000-0000-0000-000000000000\"}\n",
+    ] {
+        fs::write(&path, data).unwrap();
+        let out = f
+            .command(&[
+                "import",
+                "sessions",
+                "demo",
+                "one",
+                "--from",
+                source.to_str().unwrap(),
+                "--apply",
+            ])
+            .output()
+            .unwrap();
+        assert!(!out.status.success());
+        assert!(!String::from_utf8_lossy(&out.stderr).contains("synthetic-secret-do-not-log"));
+        assert!(!f.data.join("workspaces/demo/sessions.json").exists());
+        assert_eq!(
+            fs::read_dir(f.data.join("workspaces/demo/transcripts"))
+                .unwrap()
+                .count(),
+            0
+        );
+    }
+}
+
+#[test]
+fn copies_personal_instructions_skills_rules_and_only_basic_preferences() {
+    let f = Fixture::new();
+    f.setup();
+    let profile = f.data.join("accounts/one");
+    // Native Claude can create readable subdirectories under the private profile.
+    fs::create_dir(profile.join("skills")).unwrap();
+    fs::set_permissions(profile.join("skills"), fs::Permissions::from_mode(0o755)).unwrap();
+    let source = f.temp.path().join("personal config");
+    let skill = source.join("local-skills/review");
+    fs::create_dir_all(skill.join("scripts")).unwrap();
+    fs::create_dir_all(source.join("rules")).unwrap();
+    fs::write(source.join("AGENTS.md"), "synthetic shared instructions\n").unwrap();
+    fs::write(source.join("rules/style.md"), "synthetic style rules").unwrap();
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: review\ndescription: Synthetic review\n---\nSynthetic skill\n",
+    )
+    .unwrap();
+    fs::write(skill.join("scripts/check.sh"), "#!/bin/sh\nexit 0\n").unwrap();
+    fs::set_permissions(
+        skill.join("scripts/check.sh"),
+        fs::Permissions::from_mode(0o755),
+    )
+    .unwrap();
+    let settings = json!({"model":"sonnet","language":"Japanese","alwaysThinkingEnabled":true,"effortLevel":"high","outputStyle":"default","env":{"ANTHROPIC_API_KEY":"synthetic-secret-do-not-log"},"hooks":{"SessionStart":[]},"permissions":{"defaultMode":"bypassPermissions"},"enabledPlugins":{"synthetic":true},"unknownFutureSetting":"synthetic-value"});
+    fs::write(
+        source.join("settings.json"),
+        serde_json::to_vec(&settings).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        source.join(".credentials.json"),
+        "synthetic untouched credentials",
+    )
+    .unwrap();
+    let instructions = source.join("AGENTS.md");
+    let rules = source.join("rules");
+    let preferences = source.join("settings.json");
+    let args = [
+        "import",
+        "config",
+        "one",
+        "--instructions",
+        instructions.to_str().unwrap(),
+        "--rules",
+        rules.to_str().unwrap(),
+        "--skill",
+        skill.to_str().unwrap(),
+        "--settings",
+        preferences.to_str().unwrap(),
+    ];
+    let out = f.ok(&args);
+    assert!(!String::from_utf8_lossy(&out.stdout).contains("synthetic-secret-do-not-log"));
+    assert!(!profile.join("CLAUDE.md").exists());
+    let mut apply = args.to_vec();
+    apply.push("--apply");
+    f.ok(&apply);
+    assert_eq!(
+        fs::read_to_string(profile.join("CLAUDE.md")).unwrap(),
+        "synthetic shared instructions\n"
+    );
+    assert_eq!(
+        fs::read_to_string(profile.join("rules/style.md")).unwrap(),
+        "synthetic style rules"
+    );
+    let imported: Value =
+        serde_json::from_slice(&fs::read(profile.join("settings.json")).unwrap()).unwrap();
+    assert_eq!(
+        imported,
+        json!({"model":"sonnet","language":"Japanese","alwaysThinkingEnabled":true,"effortLevel":"high","outputStyle":"default"})
+    );
+    assert!(!profile.join(".credentials.json").exists());
+    assert!(!f.data.join("accounts/two/CLAUDE.md").exists());
+    assert_eq!(
+        fs::metadata(profile.join("skills/review/scripts/check.sh"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o700
+    );
+    assert_eq!(
+        fs::metadata(profile.join("CLAUDE.md"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(&fs::read(preferences).unwrap()).unwrap(),
+        settings
+    );
+    assert_eq!(
+        fs::read_to_string(source.join(".credentials.json")).unwrap(),
+        "synthetic untouched credentials"
+    );
+}
+
+#[test]
+fn config_import_refuses_overwrites_and_symlinked_destinations_as_a_batch() {
+    let f = Fixture::new();
+    f.setup();
+    let instructions = f.temp.path().join("CLAUDE.md");
+    let skill = f.temp.path().join("review");
+    fs::write(&instructions, "new instructions").unwrap();
+    fs::create_dir(&skill).unwrap();
+    fs::write(skill.join("SKILL.md"), "synthetic skill").unwrap();
+    let profile = f.data.join("accounts/one");
+    fs::write(profile.join("CLAUDE.md"), "keep existing").unwrap();
+    let args = [
+        "import",
+        "config",
+        "one",
+        "--instructions",
+        instructions.to_str().unwrap(),
+        "--skill",
+        skill.to_str().unwrap(),
+        "--apply",
+    ];
+    assert!(!f.command(&args).output().unwrap().status.success());
+    assert!(!profile.join("skills").exists());
+    assert_eq!(
+        fs::read_to_string(profile.join("CLAUDE.md")).unwrap(),
+        "keep existing"
+    );
+    let external = f.temp.path().join("external");
+    fs::create_dir(&external).unwrap();
+    symlink(&external, profile.join("skills")).unwrap();
+    assert!(!f
+        .command(&[
+            "import",
+            "config",
+            "one",
+            "--skill",
+            skill.to_str().unwrap(),
+            "--apply"
+        ])
+        .output()
+        .unwrap()
+        .status
+        .success());
+    assert_eq!(fs::read_dir(external).unwrap().count(), 0);
+}
+
+#[test]
+fn explicit_skill_root_links_work_but_nested_links_and_secret_files_are_rejected() {
+    let f = Fixture::new();
+    f.setup();
+    let real = f.temp.path().join("actual skill");
+    fs::create_dir(&real).unwrap();
+    fs::write(real.join("SKILL.md"), "synthetic skill").unwrap();
+    let selected = f.temp.path().join("review");
+    symlink(&real, &selected).unwrap();
+    let args = [
+        "import",
+        "config",
+        "one",
+        "--skill",
+        selected.to_str().unwrap(),
+        "--apply",
+    ];
+    let external = f.temp.path().join("external.md");
+    fs::write(&external, "do not follow nested link").unwrap();
+    symlink(&external, real.join("linked.md")).unwrap();
+    assert!(!f.command(&args).output().unwrap().status.success());
+    assert!(!f.data.join("accounts/one/skills").exists());
+    fs::remove_file(real.join("linked.md")).unwrap();
+    fs::write(real.join(".env"), "synthetic-secret-do-not-log").unwrap();
+    let out = f.command(&args).output().unwrap();
+    assert!(!out.status.success());
+    assert!(!String::from_utf8_lossy(&out.stderr).contains("synthetic-secret-do-not-log"));
+    fs::remove_file(real.join(".env")).unwrap();
+    f.ok(&args);
+    let target = f.data.join("accounts/one/skills/review");
+    assert!(!fs::symlink_metadata(&target)
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    fs::write(real.join("SKILL.md"), "changed original skill").unwrap();
+    assert_eq!(
+        fs::read_to_string(target.join("SKILL.md")).unwrap(),
+        "synthetic skill"
+    );
+}
+
+#[test]
+fn import_refuses_busy_profiles_and_workspaces() {
+    let f = Fixture::new();
+    f.setup();
+    let source = legacy_session(&f, OLD_SESSION);
+    let ready = f.temp.path().join("ready");
+    let _child = ChildGuard(
+        f.command(&["run", "demo", "one"])
+            .env("FAKE_WAIT", &ready)
+            .spawn()
+            .unwrap(),
+    );
+    await_file(&ready);
+    for account in ["one", "two"] {
+        let out = f
+            .command(&[
+                "import",
+                "sessions",
+                "demo",
+                account,
+                "--from",
+                source.to_str().unwrap(),
+                "--apply",
+            ])
+            .output()
+            .unwrap();
+        assert!(!out.status.success());
+        assert!(String::from_utf8_lossy(&out.stderr).contains("busy:"));
+    }
+    let instructions = f.temp.path().join("CLAUDE.md");
+    fs::write(&instructions, "synthetic instructions").unwrap();
+    let out = f
+        .command(&[
+            "import",
+            "config",
+            "one",
+            "--instructions",
+            instructions.to_str().unwrap(),
+            "--apply",
+        ])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("busy:"));
+}
+
+#[test]
+fn imports_reject_missing_sources_and_empty_selections() {
+    let f = Fixture::new();
+    f.setup();
+    assert!(!f
+        .command(&["import", "config", "one", "--apply"])
+        .output()
+        .unwrap()
+        .status
+        .success());
+    let empty = f.temp.path().join("empty");
+    fs::create_dir(&empty).unwrap();
+    assert!(!f
+        .command(&[
+            "import",
+            "sessions",
+            "demo",
+            "one",
+            "--from",
+            empty.to_str().unwrap(),
+            "--apply"
+        ])
+        .output()
+        .unwrap()
+        .status
+        .success());
+    assert!(!f
+        .command(&[
+            "import",
+            "sessions",
+            "demo",
+            "one",
+            "--from",
+            empty.to_str().unwrap(),
+            "--session",
+            OLD_SESSION,
+            "--apply"
+        ])
+        .output()
+        .unwrap()
+        .status
+        .success());
+    assert!(!f.data.join("workspaces/demo/sessions.json").exists());
+}
+
+#[test]
+fn batch_import_selects_the_newest_transcript_for_an_empty_workspace() {
+    let f = Fixture::new();
+    f.setup();
+    let source = legacy_session(&f, OLD_SESSION);
+    legacy_session(&f, OTHER_SESSION);
+    for (id, seconds) in [(OLD_SESSION, 100), (OTHER_SESSION, 200)] {
+        fs::File::open(source.join(format!("{id}.jsonl")))
+            .unwrap()
+            .set_modified(std::time::UNIX_EPOCH + Duration::from_secs(seconds))
+            .unwrap();
+    }
+    f.ok(&[
+        "import",
+        "sessions",
+        "demo",
+        "one",
+        "--from",
+        source.to_str().unwrap(),
+        "--apply",
+    ]);
+    assert_eq!(f.history()["sessions"].as_object().unwrap().len(), 2);
+    assert_eq!(f.history()["last"], OTHER_SESSION);
+    assert_eq!(f.history()["sessions"][OLD_SESSION]["updated_at"], 100);
+    f.ok(&["continue", "demo", "two"]);
+}
+
+#[test]
+fn import_limits_and_store_overlap_fail_before_installation() {
+    let f = Fixture::new();
+    f.setup();
+    let source = legacy_session(&f, OLD_SESSION);
+    let transcript = source.join(format!("{OLD_SESSION}.jsonl"));
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&transcript)
+        .unwrap()
+        .set_len(512 * 1024 * 1024 + 1)
+        .unwrap();
+    let args = [
+        "import",
+        "sessions",
+        "demo",
+        "one",
+        "--from",
+        source.to_str().unwrap(),
+        "--apply",
+    ];
+    let out = f.command(&args).output().unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("512 MiB"));
+    fs::write(&transcript, vec![b' '; 16 * 1024 * 1024 + 1]).unwrap();
+    let out = f.command(&args).output().unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("16 MiB"));
+    let out = f
+        .command(&[
+            "import",
+            "config",
+            "one",
+            "--rules",
+            f.temp.path().to_str().unwrap(),
+            "--apply",
+        ])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("overlaps"));
+    assert!(!f.data.join("workspaces/demo/sessions.json").exists());
+    assert!(!f.data.join("accounts/one/rules").exists());
+}
