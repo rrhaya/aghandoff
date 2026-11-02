@@ -90,6 +90,32 @@ aghandoff continue myapp second
 
 送信前にClaude内の `/status` でアカウントを確認してください。プロファイル名はローカルのラベルです。同じ実アカウントに別のラベルでログインしても、別アカウントにはなりません。
 
+## 既存の環境を取り込む
+
+aghandoffを使い始める前の会話をプレビューし、`--apply` でコピーできます。
+
+```sh
+aghandoff import sessions myapp personal --from /path/to/old/project-history
+aghandoff import sessions myapp personal --from /path/to/old/project-history --apply
+```
+
+取り込み元には、通常の `~/.claude/projects/` 内の対象プロジェクトのディレクトリを指定します。`--session <uuid>` で会話を選択でき、複数回指定も可能です。`--with-memory` を付けると、そのプロジェクトのauto memoryも取り込みます。適用後に再開用のコマンドが表示されます。
+
+個人の指示・スキルも、アカウントプロファイルごとにコピーできます。
+
+```sh
+aghandoff import config personal --instructions ~/.claude/CLAUDE.md --skill ~/.claude/skills/review
+# プレビューを確認した後、--apply を付けて再実行します。
+```
+
+`--instructions` には個人の `AGENTS.md` なども指定でき、プロファイルの `CLAUDE.md` として保存します。`--skill` は任意のローカルディレクトリのスキルを選択でき、複数回指定できます。`--rules <dir>` は個人のルール、`--settings <file>` は基本設定の取り込みです。
+
+設定から取り込むのは `model`、`language`、`outputStyle`、`alwaysThinkingEnabled`、`effortLevel` の5項目だけです。認証情報、hooks、環境変数、MCP設定、権限設定は移しません。既存ファイルは上書きせず、元のファイルも変更しません。コピー後の自動同期は行わないため、同じ個人設定を使いたいプロファイルごとに実行してください。
+
+プロジェクト内の指示ファイルや `.claude/skills/` は、従来どおりClaude自身のルールで読み込まれます。取り込み前に元のClaudeセッションを終了してください。明示した取り込み元のシンボリックリンクは解決しますが、内部のリンクや既知の秘密ファイル名は拒否します。取り込み対象の指示やスキル自体に秘密情報が含まれないことも確認してください。
+
+取り込みは一度に512 MiB・10,000ファイルまでです。既存ファイルとの衝突や登録済みIDがあれば、選択全体を中止します。新しい作業領域では、更新日時が最新の取り込み済み会話を `continue` の対象にします。既に対象がある場合は変更しません。JSONL以外への書き出し、外部のファイル復元用チェックポイント、実行中のプロセス、サーバー側状態は移行しません。[詳細な取り込み手順](docs/import.md)（英語）を参照してください。
+
 ## コマンド
 
 | コマンド | 用途 |
@@ -102,6 +128,8 @@ aghandoff continue myapp second
 | `continue <workspace> <account>` | 最後に正常保存されたセッションを再開 |
 | `resume <workspace> <account> <session-id>` | 登録済みのセッションを指定して再開 |
 | `sessions <workspace>` | セッションIDと起動情報を表示 |
+| `import sessions <workspace> <account> --from <dir>` | 既存の会話をプレビュー。`--apply` でコピー |
+| `import config <account> [options]` | 個人の指示・スキル・ルール・基本設定を選択して取り込み |
 
 名前は小文字英数字・`-`・`_` を使い、先頭は英数字、長さは48文字以内です。
 
@@ -109,7 +137,7 @@ aghandoff continue myapp second
 
 ## 仕組み
 
-プロファイルごとに `CLAUDE_CONFIG_DIR` を分けます。登録した作業領域では、領域専用のリンクを通して会話ファイルとauto memoryを共有し、元のセッションIDで再開します。認証、ユーザー設定、MCP認証、拡張機能、プロンプトの入力履歴は分離されます。
+プロファイルごとに `CLAUDE_CONFIG_DIR` を分けます。登録した作業領域では、領域専用のリンクを通して会話ファイルとauto memoryを共有し、元のセッションIDで再開します。認証、MCP認証、拡張機能、プロンプトの入力履歴は分離されます。個人設定も分離され、`import config` で選んだものだけコピーできます。
 
 ログイン、資格情報の保管と更新はClaude自身が処理します。aghandoffは資格情報ファイルやOSのKeychainを直接開かず、Claudeの認証ステータスを確認します。プロキシは追加せず、管理するforeground sessionの実行中はアカウントと作業領域のロックを保持します。
 
@@ -126,9 +154,9 @@ aghandoff --claude-bin /path/to/claude status personal
 
 ## 現在の対応範囲
 
-- Claudeサブスクリプションのログインと、aghandoffで作成したセッション。
+- Claudeサブスクリプションのログイン、aghandoffで作成したセッション、取り込んだネイティブ形式の会話履歴。
 - Claudeを終了した後のアカウント変更。管理対象はforeground sessionのみ。
-- 既存履歴の取り込み、Codex対応、アカウント別の使用量表示は今後の対象です。
+- 選択した既存履歴と個人設定の取り込み。Codex対応とアカウント別の使用量表示は今後の対象です。
 
 会話の切り替えにはaghandoffの `run` / `resume` を使ってください。Claude内の `/clear` / `/resume` によるセッション変更は追跡しません。使用量は当面Claudeの `/usage` で確認できます。
 
@@ -143,11 +171,11 @@ cargo test --all-targets --locked
 cargo clippy --all-targets --locked -- -D warnings
 ```
 
-fake Claude CLIと合成データを使った統合テストを13件用意しています。プロファイルの分離、会話・メモリの共有、再開失敗、プロセスの排他を対象としています。
+fake Claude CLIと合成データを使った統合テストを22件用意しています。プロファイルの分離、会話・メモリの共有、再開失敗、プロセスの排他、履歴移行、個人設定の選択、取り込み先との衝突を対象としています。
 
 `Cargo.lock`でCIに使用する依存バージョンを固定しています。
 
-Rust 1.85.1を使い、Ubuntu 24.04とmacOS 14でリリースビルド・Clippy・13件すべての統合テストが通過しています。実アカウント間の引き継ぎは手動検証が必要です。
+CIはRust 1.85.1を使い、Ubuntu 24.04とmacOS 14でリリースビルド・整形・Clippy・すべての統合テストを確認します。実アカウント間の引き継ぎと、実際のClaudeでの取り込み履歴の再開は手動検証が必要です。
 
 [設計メモ](docs/design.md) · [手動検証手順](docs/manual-test.md)（英語）
 

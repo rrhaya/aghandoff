@@ -33,3 +33,12 @@ If using `--data-dir`, pass the same path on every command below.
 - If an empty conversation opens, exit without continuing. Session continuity has not passed.
 
 Record the Claude version, OS, step number, result, and redacted errors. Exclude account emails, tokens, and real conversation content.
+
+## Existing session import
+
+1. In a disposable project, start normal Claude outside aghandoff. Exchange a synthetic phrase, optionally save synthetic auto memory, and exit. Locate its native project-history directory.
+2. Register that same working directory in an empty aghandoff workspace. Preview `import sessions WORKSPACE PROFILE --from HISTORY_DIR --with-memory`; confirm that it lists only selected transcripts, related files, and memory. Confirm the target has no imported sessions yet.
+3. Repeat with `--apply`. Resume the printed UUID with the original account, confirm `/status`, and check the saved phrase. Exit, resume with the second profile, and check again.
+4. Confirm the original source transcript and memory remain unchanged. Repeat the import and expect a conflict rather than an overwrite.
+5. Create synthetic personal instructions, a self-contained skill, and preferences. Preview then apply `import config` into a new profile before login. Confirm `/memory` and `/skills` show the imported material. Confirm excluded settings and credentials were not copied. Do not use credential values in the test.
+6. After each import, confirm normal Claude still has its original configuration. Test an existing destination and a nested skill symlink; expect refusal without a partial import.
