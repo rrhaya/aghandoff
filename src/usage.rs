@@ -57,7 +57,9 @@ struct Snapshot {
 pub(crate) fn execute(store: &Store, registry: &Registry, action: UsageAction) -> Result<()> {
     match action {
         UsageAction::Setup { account, apply } => configure(store, registry, &account, apply, false),
-        UsageAction::Disable { account, apply } => configure(store, registry, &account, apply, true),
+        UsageAction::Disable { account, apply } => {
+            configure(store, registry, &account, apply, true)
+        }
         UsageAction::Record { account } => record(store, registry, &account),
         UsageAction::List { json: as_json } => list(store, registry, as_json),
     }
@@ -69,8 +71,13 @@ fn shell_quote(value: &str) -> String {
 
 fn status_line(store: &Store, account: &str) -> Result<Value> {
     let executable = env::current_exe()?;
-    let executable = executable.to_str().context("executable path must be UTF-8")?;
-    let root = store.root.to_str().context("data directory must be UTF-8")?;
+    let executable = executable
+        .to_str()
+        .context("executable path must be UTF-8")?;
+    let root = store
+        .root
+        .to_str()
+        .context("data directory must be UTF-8")?;
     Ok(json!({
         "type": "command",
         "command": format!("{} --data-dir {} usage record {}",
@@ -78,7 +85,13 @@ fn status_line(store: &Store, account: &str) -> Result<Value> {
     }))
 }
 
-fn configure(store: &Store, registry: &Registry, account: &str, apply: bool, disable: bool) -> Result<()> {
+fn configure(
+    store: &Store,
+    registry: &Registry,
+    account: &str,
+    apply: bool,
+    disable: bool,
+) -> Result<()> {
     let profile = store.check_account(registry, account)?;
     let _lock = lock(&profile.join("active.lock"))?;
     let path = profile.join("settings.json");
@@ -88,7 +101,9 @@ fn configure(store: &Store, registry: &Registry, account: &str, apply: bool, dis
     } else {
         json!({})
     };
-    let object = settings.as_object_mut().context("profile settings must be a JSON object")?;
+    let object = settings
+        .as_object_mut()
+        .context("profile settings must be a JSON object")?;
     let expected = status_line(store, account)?;
     let current = object.get("statusLine").filter(|v| !v.is_null());
     if current.is_some_and(|value| value != &expected) {
@@ -108,15 +123,20 @@ fn configure(store: &Store, registry: &Registry, account: &str, apply: bool, dis
         }
         println!("{account}: remove aghandoff's statusLine entry; retain all other settings and snapshots");
     } else {
-        println!("{}", serde_json::to_string_pretty(&json!({"statusLine": expected}))?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({"statusLine": expected}))?
+        );
         if apply {
             object.insert("statusLine".to_owned(), expected);
         }
     }
     if apply {
         write_json(&path, &settings)?;
-        println!("{account}: usage collection {}; restart managed Claude to apply",
-            if disable { "disabled" } else { "enabled" });
+        println!(
+            "{account}: usage collection {}; restart managed Claude to apply",
+            if disable { "disabled" } else { "enabled" }
+        );
     } else {
         println!("Preview only. Repeat with --apply to change this profile's status line.");
     }
@@ -127,17 +147,26 @@ fn parse_window(value: Option<&Value>) -> Result<Option<Window>> {
     let Some(value) = value.filter(|v| !v.is_null()) else {
         return Ok(None);
     };
-    let object = value.as_object().context("invalid rate limit window (values hidden)")?;
+    let object = value
+        .as_object()
+        .context("invalid rate limit window (values hidden)")?;
     let (Some(used), Some(reset)) = (object.get("used_percentage"), object.get("resets_at")) else {
         return Ok(None);
     };
     if used.is_null() || reset.is_null() {
         return Ok(None);
     }
-    let used = used.as_f64().filter(|p| p.is_finite() && (0.0..=100.0).contains(p))
+    let used = used
+        .as_f64()
+        .filter(|p| p.is_finite() && (0.0..=100.0).contains(p))
         .context("invalid rate limit percentage (values hidden)")?;
-    let reset = reset.as_u64().context("invalid rate limit reset time (values hidden)")?;
-    Ok(Some(Window { used_percentage: used, resets_at: reset }))
+    let reset = reset
+        .as_u64()
+        .context("invalid rate limit reset time (values hidden)")?;
+    Ok(Some(Window {
+        used_percentage: used,
+        resets_at: reset,
+    }))
 }
 
 fn record(store: &Store, registry: &Registry, account: &str) -> Result<()> {
@@ -147,13 +176,18 @@ fn record(store: &Store, registry: &Registry, account: &str) -> Result<()> {
         bail!("callback profile does not match CLAUDE_CONFIG_DIR; no snapshot saved");
     }
     let mut input = Vec::new();
-    std::io::stdin().take(MAX_INPUT + 1).read_to_end(&mut input)?;
+    std::io::stdin()
+        .take(MAX_INPUT + 1)
+        .read_to_end(&mut input)?;
     if input.len() as u64 > MAX_INPUT {
         bail!("status-line input exceeds 1 MiB; no snapshot saved");
     }
-    let value: Value = serde_json::from_slice(&input)
-        .map_err(|_| anyhow::anyhow!("invalid status-line JSON; no snapshot saved (contents hidden)"))?;
-    let object = value.as_object().context("status-line input must be a JSON object")?;
+    let value: Value = serde_json::from_slice(&input).map_err(|_| {
+        anyhow::anyhow!("invalid status-line JSON; no snapshot saved (contents hidden)")
+    })?;
+    let object = value
+        .as_object()
+        .context("status-line input must be a JSON object")?;
     let limits = object.get("rate_limits").filter(|v| !v.is_null());
     if limits.is_some_and(|v| !v.is_object()) {
         bail!("invalid rate_limits object (values hidden)");
@@ -167,9 +201,19 @@ fn record(store: &Store, registry: &Registry, account: &str) -> Result<()> {
     // holds active.lock. Atomic writes let readers observe a complete snapshot.
     let _lock = lock(&store.root.join("usage").join(format!("{account}.lock")))?;
     write_json(&store.usage(account), &snapshot)?;
-    println!("{account} | 5h {} | 7d {}",
-        window_text(&window_view(snapshot.five_hour.as_ref(), snapshot.observed_at, now())),
-        window_text(&window_view(snapshot.seven_day.as_ref(), snapshot.observed_at, now())));
+    println!(
+        "{account} | 5h {} | 7d {}",
+        window_text(&window_view(
+            snapshot.five_hour.as_ref(),
+            snapshot.observed_at,
+            now()
+        )),
+        window_text(&window_view(
+            snapshot.seven_day.as_ref(),
+            snapshot.observed_at,
+            now()
+        ))
+    );
     Ok(())
 }
 
@@ -191,7 +235,10 @@ fn window_view(window: Option<&Window>, observed: u64, current: u64) -> Value {
 
 fn window_text(window: &Value) -> String {
     match window["used_percentage"].as_f64() {
-        Some(used) => format!("{used:.1}% ({})", window["state"].as_str().unwrap_or("unknown")),
+        Some(used) => format!(
+            "{used:.1}% ({})",
+            window["state"].as_str().unwrap_or("unknown")
+        ),
         None => "unknown".to_owned(),
     }
 }
@@ -203,10 +250,16 @@ fn list(store: &Store, registry: &Registry, as_json: bool) -> Result<()> {
         store.check_account(registry, account)?;
         let path = store.usage(account);
         let snapshot: Option<Snapshot> = if regular_file(&path)? {
-            let snapshot: Snapshot = serde_json::from_slice(&fs::read(path)?)
-                .map_err(|_| anyhow::anyhow!("invalid usage metadata for {account}; contents hidden"))?;
-            for window in [&snapshot.five_hour, &snapshot.seven_day].into_iter().flatten() {
-                if !window.used_percentage.is_finite() || !(0.0..=100.0).contains(&window.used_percentage) {
+            let snapshot: Snapshot = serde_json::from_slice(&fs::read(path)?).map_err(|_| {
+                anyhow::anyhow!("invalid usage metadata for {account}; contents hidden")
+            })?;
+            for window in [&snapshot.five_hour, &snapshot.seven_day]
+                .into_iter()
+                .flatten()
+            {
+                if !window.used_percentage.is_finite()
+                    || !(0.0..=100.0).contains(&window.used_percentage)
+                {
                     bail!("invalid stored percentage for {account}");
                 }
             }
@@ -229,11 +282,17 @@ fn list(store: &Store, registry: &Registry, as_json: bool) -> Result<()> {
         println!("No profiles. Create one with aghandoff account add <name>.");
     } else {
         for row in rows {
-            let age = row["age_seconds"].as_u64().map_or_else(|| "unknown".to_owned(), |s| format!("{s}s"));
-            println!("{}\t5h={}\t7d={}\tage={age}\t5h-reset={}\t7d-reset={}",
+            let age = row["age_seconds"]
+                .as_u64()
+                .map_or_else(|| "unknown".to_owned(), |s| format!("{s}s"));
+            println!(
+                "{}\t5h={}\t7d={}\tage={age}\t5h-reset={}\t7d-reset={}",
                 row["account"].as_str().unwrap_or("unknown"),
-                window_text(&row["five_hour"]), window_text(&row["seven_day"]),
-                row["five_hour"]["resets_at"], row["seven_day"]["resets_at"]);
+                window_text(&row["five_hour"]),
+                window_text(&row["seven_day"]),
+                row["five_hour"]["resets_at"],
+                row["seven_day"]["resets_at"]
+            );
         }
     }
     Ok(())
@@ -245,20 +304,33 @@ mod tests {
 
     #[test]
     fn observation_age_reset_and_clock_skew_have_distinct_states() {
-        let window = Window { used_percentage: 25.0, resets_at: 2000 };
+        let window = Window {
+            used_percentage: 25.0,
+            resets_at: 2000,
+        };
         assert_eq!(window_view(Some(&window), 1000, 1300)["state"], "fresh");
         assert_eq!(window_view(Some(&window), 1000, 1301)["state"], "stale");
         assert_eq!(window_view(Some(&window), 1000, 2000)["state"], "expired");
-        assert_eq!(window_view(Some(&window), 2000, 1999)["state"], "clock-skew");
+        assert_eq!(
+            window_view(Some(&window), 2000, 1999)["state"],
+            "clock-skew"
+        );
         assert_eq!(window_view(None, 1000, 1000)["state"], "unknown");
     }
 
     #[test]
     fn absent_windows_stay_unknown_and_invalid_numbers_are_rejected() {
-        for value in [Value::Null, json!({}), json!({"used_percentage":null,"resets_at":10})] {
+        for value in [
+            Value::Null,
+            json!({}),
+            json!({"used_percentage":null,"resets_at":10}),
+        ] {
             assert!(parse_window(Some(&value)).unwrap().is_none());
         }
-        for value in [json!({"used_percentage":-1,"resets_at":10}), json!({"used_percentage":10,"resets_at":-1})] {
+        for value in [
+            json!({"used_percentage":-1,"resets_at":10}),
+            json!({"used_percentage":10,"resets_at":-1}),
+        ] {
             assert!(parse_window(Some(&value)).is_err());
         }
     }

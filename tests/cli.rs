@@ -317,6 +317,12 @@ fn blocks_workspace_and_account_overlap_and_releases_locks_on_termination() {
     let out = f.command(&["run", "demo", "two"]).output().unwrap();
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("busy:"));
+    let out = f
+        .command(&["usage", "setup", "one", "--apply"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("busy:"));
     assert!(!f
         .command(&["login", "one"])
         .output()
@@ -964,10 +970,14 @@ fn import_limits_and_store_overlap_fail_before_installation() {
 }
 
 fn record_usage(f: &Fixture, account: &str, input: &[u8]) -> Output {
-    let mut child = f.command(&["usage", "record", account])
+    let mut child = f
+        .command(&["usage", "record", account])
         .env("CLAUDE_CONFIG_DIR", f.data.join("accounts").join(account))
-        .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
-        .spawn().unwrap();
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
     child.stdin.take().unwrap().write_all(input).unwrap();
     child.wait_with_output().unwrap()
 }
@@ -977,13 +987,18 @@ fn usage_rows(f: &Fixture) -> Value {
 }
 
 fn usage_payload(used: f64) -> Vec<u8> {
-    let reset = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() + 3600;
+    let reset = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
     serde_json::to_vec(&json!({
         "rate_limits": {"five_hour": {"used_percentage": used, "resets_at": reset}},
         "email": "synthetic@example.invalid",
         "transcript_path": "/synthetic/private/transcript.jsonl",
         "future": "synthetic-secret-not-for-storage"
-    })).unwrap()
+    }))
+    .unwrap()
 }
 
 #[test]
@@ -995,24 +1010,43 @@ fn usage_setup_and_disable_preview_preserve_other_settings_and_custom_status_lin
     fs::write(&path, serde_json::to_vec(&original).unwrap()).unwrap();
     let preview = f.ok(&["usage", "setup", "one"]);
     assert!(!String::from_utf8_lossy(&preview.stdout).contains("synthetic-secret-not-for-logs"));
-    assert_eq!(serde_json::from_slice::<Value>(&fs::read(&path).unwrap()).unwrap(), original);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&fs::read(&path).unwrap()).unwrap(),
+        original
+    );
     f.ok(&["usage", "setup", "one", "--apply"]);
     let enabled: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     assert_eq!(enabled["language"], original["language"]);
     assert_eq!(enabled["env"], original["env"]);
     assert_eq!(enabled["statusLine"]["type"], "command");
     f.ok(&["usage", "setup", "one", "--apply"]);
-    assert!(record_usage(&f, "one", &usage_payload(25.0)).status.success());
+    assert!(record_usage(&f, "one", &usage_payload(25.0))
+        .status
+        .success());
     f.ok(&["usage", "disable", "one"]);
-    assert_eq!(serde_json::from_slice::<Value>(&fs::read(&path).unwrap()).unwrap(), enabled);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&fs::read(&path).unwrap()).unwrap(),
+        enabled
+    );
     f.ok(&["usage", "disable", "one", "--apply"]);
-    assert_eq!(serde_json::from_slice::<Value>(&fs::read(&path).unwrap()).unwrap(), original);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&fs::read(&path).unwrap()).unwrap(),
+        original
+    );
     assert!(f.data.join("usage/one.json").exists());
     let custom = json!({"statusLine":{"type":"command","command":"synthetic custom command"}});
     fs::write(&path, serde_json::to_vec(&custom).unwrap()).unwrap();
     for command in ["setup", "disable"] {
-        assert!(!f.command(&["usage", command, "one", "--apply"]).output().unwrap().status.success());
-        assert_eq!(serde_json::from_slice::<Value>(&fs::read(&path).unwrap()).unwrap(), custom);
+        assert!(!f
+            .command(&["usage", command, "one", "--apply"])
+            .output()
+            .unwrap()
+            .status
+            .success());
+        assert_eq!(
+            serde_json::from_slice::<Value>(&fs::read(&path).unwrap()).unwrap(),
+            custom
+        );
     }
 }
 
@@ -1020,7 +1054,9 @@ fn usage_setup_and_disable_preview_preserve_other_settings_and_custom_status_lin
 fn usage_snapshots_store_only_documented_counters_and_reject_profile_mismatch() {
     let f = Fixture::new();
     f.setup();
-    assert!(record_usage(&f, "one", &usage_payload(23.5)).status.success());
+    assert!(record_usage(&f, "one", &usage_payload(23.5))
+        .status
+        .success());
     let stored = fs::read_to_string(f.data.join("usage/one.json")).unwrap();
     assert!(!stored.contains("synthetic"));
     let metadata: Value = serde_json::from_str(&stored).unwrap();
@@ -1031,12 +1067,21 @@ fn usage_snapshots_store_only_documented_counters_and_reject_profile_mismatch() 
     assert_eq!(rows[0]["seven_day"]["state"], "unknown");
     assert_eq!(rows[1]["five_hour"]["state"], "unknown");
     assert!(rows[1]["observed_at"].is_null());
-    let out = f.command(&["usage", "record", "two"])
+    let out = f
+        .command(&["usage", "record", "two"])
         .env("CLAUDE_CONFIG_DIR", f.data.join("accounts/one"))
-        .output().unwrap();
+        .output()
+        .unwrap();
     assert!(!out.status.success());
     assert!(!f.data.join("usage/two.json").exists());
-    assert_eq!(fs::metadata(f.data.join("usage/one.json")).unwrap().permissions().mode() & 0o777, 0o600);
+    assert_eq!(
+        fs::metadata(f.data.join("usage/one.json"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
 }
 
 #[test]
@@ -1044,7 +1089,9 @@ fn missing_usage_is_unknown_and_bad_inputs_preserve_the_last_valid_observation()
     let f = Fixture::new();
     f.setup();
     let path = f.data.join("usage/one.json");
-    assert!(record_usage(&f, "one", &usage_payload(40.0)).status.success());
+    assert!(record_usage(&f, "one", &usage_payload(40.0))
+        .status
+        .success());
     let good = fs::read(&path).unwrap();
     for input in [
         "synthetic-secret-not-for-logs",
@@ -1061,7 +1108,11 @@ fn missing_usage_is_unknown_and_bad_inputs_preserve_the_last_valid_observation()
     let oversized = vec![b' '; 1024 * 1024 + 1];
     assert!(!record_usage(&f, "one", &oversized).status.success());
     assert_eq!(fs::read(&path).unwrap(), good);
-    for input in ["{}", "{\"rate_limits\":null}", "{\"rate_limits\":{\"five_hour\":{\"used_percentage\":10}}}"] {
+    for input in [
+        "{}",
+        "{\"rate_limits\":null}",
+        "{\"rate_limits\":{\"five_hour\":{\"used_percentage\":10}}}",
+    ] {
         assert!(record_usage(&f, "one", input.as_bytes()).status.success());
         assert_eq!(usage_rows(&f)[0]["five_hour"]["state"], "unknown");
         assert!(usage_rows(&f)[0]["five_hour"]["used_percentage"].is_null());
@@ -1075,10 +1126,26 @@ fn status_line_callback_runs_during_handoff_with_quoted_paths_and_separate_accou
     f.setup();
     f.ok(&["usage", "setup", "one", "--apply"]);
     f.ok(&["usage", "setup", "two", "--apply"]);
-    let out = f.command(&["run", "demo", "one"]).env("FAKE_USED", "25").output().unwrap();
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
-    let out = f.command(&["continue", "demo", "two"]).env("FAKE_USED", "80").output().unwrap();
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let out = f
+        .command(&["run", "demo", "one"])
+        .env("FAKE_USED", "25")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let out = f
+        .command(&["continue", "demo", "two"])
+        .env("FAKE_USED", "80")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let rows = usage_rows(&f);
     assert_eq!(rows[0]["five_hour"]["used_percentage"], 25.0);
     assert_eq!(rows[1]["five_hour"]["used_percentage"], 80.0);
@@ -1099,16 +1166,28 @@ fn usage_metadata_corruption_and_symlinks_are_not_treated_as_unknown() {
     let unrelated = f.temp.path().join("unrelated-usage");
     fs::write(&unrelated, "synthetic-secret-not-for-logs").unwrap();
     symlink(&unrelated, &path).unwrap();
-    assert!(!f.command(&["usage", "list"]).output().unwrap().status.success());
-    assert!(!record_usage(&f, "one", &usage_payload(25.0)).status.success());
-    assert_eq!(fs::read_to_string(unrelated).unwrap(), "synthetic-secret-not-for-logs");
+    assert!(!f
+        .command(&["usage", "list"])
+        .output()
+        .unwrap()
+        .status
+        .success());
+    assert!(!record_usage(&f, "one", &usage_payload(25.0))
+        .status
+        .success());
+    assert_eq!(
+        fs::read_to_string(unrelated).unwrap(),
+        "synthetic-secret-not-for-logs"
+    );
 }
 
 #[test]
 fn logging_in_again_invalidates_usage_from_the_previous_identity() {
     let f = Fixture::new();
     f.setup();
-    assert!(record_usage(&f, "one", &usage_payload(25.0)).status.success());
+    assert!(record_usage(&f, "one", &usage_payload(25.0))
+        .status
+        .success());
     f.ok(&["login", "one"]);
     assert_eq!(usage_rows(&f)[0]["five_hour"]["state"], "unknown");
     assert!(usage_rows(&f)[0]["observed_at"].is_null());
