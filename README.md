@@ -41,19 +41,25 @@ On macOS, if the build reports a missing linker, install the [Command Line Tools
 If you already use [mise](https://mise.jdx.dev/lang/rust.html), you can manage Rust with it. mise uses rustup internally and installs it if needed, so a separate rustup installation is unnecessary.
 
 ```sh
-mise use -g rust@stable
-mise exec -- rustc --version
-mise exec -- cargo --version
+mise install rust@stable
+mise exec rust@stable -- rustc --version
+mise exec rust@stable -- cargo --version
 ```
 
-`-g` sets your personal default Rust version. After cloning the repository and entering its directory as shown below, install and check aghandoff with:
+These commands do not select a global or project default. After cloning the repository and entering its directory as shown below, install and check aghandoff with:
 
 ```sh
-mise exec -- cargo install --path . --locked
-mise exec -- aghandoff --help
+mise exec rust@stable -- cargo install --path . --locked
+mise exec rust@stable -- aghandoff --help
 ```
 
-If mise is not activated in your shell, prefix subsequent `aghandoff` commands with `mise exec --` as well. mise is optional; rustup alone is sufficient.
+If `cargo` reports `No version is set for shim: cargo`, pass `rust@stable` explicitly as above. To install or update directly from GitHub without cloning:
+
+```sh
+mise exec rust@stable -- cargo install --git https://github.com/rrhaya/aghandoff.git --locked --force
+```
+
+If mise is not activated in your shell, prefix subsequent `aghandoff` commands with `mise exec rust@stable --` as well. You can optionally select a personal default with `mise use -g rust@stable`. mise is optional; rustup alone is sufficient.
 
 </details>
 
@@ -112,6 +118,25 @@ You can select a personal `AGENTS.md` or a skill in another local directory inst
 
 Project instructions and `.claude/skills/` continue to load through Claude's normal rules. [Import guide](docs/import.md) covers selection, conflicts, and limits.
 
+## Account usage
+
+Opt in to collecting Claude's official status-line rate-limit counters for each profile:
+
+```sh
+aghandoff usage setup personal
+aghandoff usage setup personal --apply
+aghandoff usage setup second --apply
+```
+
+Restart managed Claude, send a message, then inspect the last local observations:
+
+```sh
+aghandoff usage list
+aghandoff usage list --json
+```
+
+This shows observed 5-hour and 7-day percentages, reset times, and observation ages. Missing data stays unknown; stale and expired data is labeled explicitly. The command does not poll servers or open credentials. Existing custom status lines are preserved. [Usage guide](docs/usage.md) covers availability, disabling collection, and limitations.
+
 ## Commands
 
 | Command | Purpose |
@@ -126,6 +151,9 @@ Project instructions and `.claude/skills/` continue to load through Claude's nor
 | `sessions <workspace>` | List session IDs and launch metadata |
 | `import sessions <workspace> <account> --from <dir>` | Preview existing native conversations; add `--apply` to copy |
 | `import config <account> [options]` | Preview selected personal instructions, skills, rules, and preferences |
+| `usage setup <account> [--apply]` | Preview or enable local usage collection through Claude's status line |
+| `usage disable <account> [--apply]` | Preview or disable aghandoff's own status line |
+| `usage list [--json]` | Show the last observed usage for all registered profiles |
 
 Names use lowercase letters, digits, `-`, or `_`, begin with a letter or digit, and contain up to 48 characters.
 
@@ -152,9 +180,10 @@ aghandoff --claude-bin /path/to/claude status personal
 
 - Claude subscription logins, sessions created through aghandoff, and imported native transcripts.
 - Account changes after exiting Claude; managed foreground sessions only.
-- Selected local history and personal configuration import. Codex support and account usage dashboards are planned.
+- Selected local history and personal configuration import, plus opt-in account usage snapshots.
+- Codex support, live usage polling, and binary distribution are not implemented. See the [roadmap](docs/roadmap.md).
 
-Use aghandoff's `run` and `resume` to change conversations. Session changes made with Claude's `/clear` or `/resume` are not tracked. Check usage with Claude's `/usage` for now.
+Use aghandoff's `run` and `resume` to change conversations. Session changes made with Claude's `/clear` or `/resume` are not tracked. Use Claude's `/usage` to verify current limits; `aghandoff usage list` displays local observations.
 
 Restored context is subject to Claude's session retention and account or organization restrictions. Running tools, processes, and server-side caches do not transfer. Sharing workspace storage across profiles is an integration approach that still needs validation against the live CLI.
 
@@ -167,7 +196,7 @@ cargo test --all-targets --locked
 cargo clippy --all-targets --locked -- -D warnings
 ```
 
-The suite includes 24 offline integration tests using a fake Claude CLI and synthetic data. It covers profile separation, shared transcripts and memory, resume failures, process locking, history migration, configuration selection, import conflicts, and resource limits.
+The suite includes 30 offline integration tests and 2 unit tests using a fake Claude CLI and synthetic data. It covers profile separation, shared transcripts and memory, resume failures, process locking, history migration, configuration selection, import conflicts, resource limits, and usage snapshots.
 
 `Cargo.lock` pins the dependency versions used in CI.
 
