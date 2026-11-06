@@ -200,7 +200,7 @@ The suite includes 30 offline integration tests and 2 unit tests using a fake Cl
 
 `Cargo.lock` pins the dependency versions used in CI.
 
-CI checks release builds, formatting, Clippy, and all offline integration tests on Ubuntu 24.04 and macOS 14 with Rust 1.85.1. Live account handoff and imported transcript compatibility still need manual verification.
+CI checks release builds, formatting, Clippy, and all offline integration tests on Ubuntu 24.04 and macOS 15 with Rust 1.85.1. Live account handoff, imported transcript compatibility, and native usage collection still need manual verification.
 
 [Design notes](docs/design.md) · [Manual acceptance test](docs/manual-test.md)
 
