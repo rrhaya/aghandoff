@@ -42,3 +42,12 @@ Record the Claude version, OS, step number, result, and redacted errors. Exclude
 4. Confirm the original source transcript and memory remain unchanged. Repeat the import and expect a conflict rather than an overwrite.
 5. Create synthetic personal instructions, a self-contained skill, and preferences. Preview then apply `import config` into a new profile before login. Confirm `/memory` and `/skills` show the imported material. Confirm excluded settings and credentials were not copied. Do not use credential values in the test.
 6. After each import, confirm normal Claude still has its original configuration. Test an existing destination and a nested skill symlink; expect refusal without a partial import.
+
+## Usage observations
+
+1. In a dedicated test store, preview `usage setup a` and confirm profile settings are unchanged. Apply it with `--apply`, and repeat for B. If a custom status line already exists, expect refusal and leave it intact.
+2. Start a managed session as A and send a synthetic message. Compare `usage list --json` with Claude's `/usage`; check the profile label, values, reset timestamps, and observation age. If Claude does not supply a rate-limit window, expect unknown, not 0%.
+3. Exit and resume as B. Confirm that B's observation updates separately and A's remains historical. Confirm the normal, unmanaged Claude setup is unchanged.
+4. Wait more than five minutes without another callback; expect stale values. When a reported reset time passes, expect expired. Do not interpret either as available capacity.
+5. Disable with `usage disable a --apply` after exiting Claude; verify other settings and saved observations remain. Sign in again under B's label and confirm its old observation is cleared before any new request.
+6. Record only the CLI version, OS, states, and synthetic test result. Do not paste status-line payloads or personal settings into a report.

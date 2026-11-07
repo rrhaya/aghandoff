@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import subprocess
 import time
 
 args = sys.argv[1:]
@@ -51,6 +52,25 @@ with transcript.open("a") as out:
 memory = storage / "memory"
 memory.mkdir(exist_ok=True)
 (memory / "MEMORY.md").write_text("synthetic memory")
+
+settings_path = profile / "settings.json"
+if settings_path.exists():
+    status_line = json.loads(settings_path.read_text()).get("statusLine")
+    if status_line:
+        payload = {
+            "rate_limits": {
+                "five_hour": {"used_percentage": float(os.environ.get("FAKE_USED", "23.5")),
+                              "resets_at": int(time.time()) + 3600},
+                "seven_day": {"used_percentage": 41.2, "resets_at": int(time.time()) + 604800},
+            },
+            "unknownFutureField": "synthetic-secret-not-for-storage",
+            "transcript_path": str(transcript),
+        }
+        callback = subprocess.run(status_line["command"], shell=True,
+                                  input=json.dumps(payload).encode(), capture_output=True)
+        if callback.returncode:
+            print("synthetic status-line callback failed", file=sys.stderr)
+            sys.exit(13)
 
 if os.environ.get("FAKE_WAIT"):
     Path(os.environ["FAKE_WAIT"]).write_text("ready")

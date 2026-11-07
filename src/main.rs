@@ -21,6 +21,7 @@ use std::{
 use uuid::Uuid;
 
 mod imports;
+mod usage;
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -67,6 +68,11 @@ enum Action {
     Import {
         #[command(subcommand)]
         command: imports::ImportAction,
+    },
+    /// Set up opt-in usage snapshots or display observations for registered profiles.
+    Usage {
+        #[command(subcommand)]
+        command: usage::UsageAction,
     },
 }
 
@@ -222,7 +228,7 @@ impl Store {
         } else if fs::read(&marker)? != b"aghandoff-store-v1\n" {
             bail!("unsupported aghandoff store version");
         }
-        for name in ["accounts", "workspaces"] {
+        for name in ["accounts", "workspaces", "usage"] {
             private_dir(&root.join(name))?;
         }
         Ok(Self { root })
@@ -236,6 +242,9 @@ impl Store {
     }
     fn workspace(&self, name: &str) -> PathBuf {
         self.root.join("workspaces").join(name)
+    }
+    fn usage(&self, account: &str) -> PathBuf {
+        self.root.join("usage").join(format!("{account}.json"))
     }
 
     fn check_account(&self, registry: &Registry, account: &str) -> Result<PathBuf> {
@@ -412,6 +421,8 @@ fn auth(
     check_environment()?;
     version_check(executable)?;
     if login {
+        // A new login may select another identity under the same local label.
+        usage::invalidate(store, account)?;
         // Use a neutral managed cwd so project-specific settings cannot affect login.
         let mut command = claude(executable, &profile)?;
         command.current_dir(&profile).args(["auth", "login"]);
@@ -650,6 +661,10 @@ fn execute(cli: Cli) -> Result<i32> {
         Action::Import { command } => {
             drop(registry_lock);
             imports::execute(&store, &registry, command)?;
+        }
+        Action::Usage { command } => {
+            drop(registry_lock);
+            usage::execute(&store, &registry, command)?;
         }
     }
     Ok(0)

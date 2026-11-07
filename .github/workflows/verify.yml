@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14]
+        os: [ubuntu-24.04, macos-15]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
@@ -39,6 +39,8 @@ jobs:
           ./target/release/aghandoff --version
           ./target/release/aghandoff import sessions --help
           ./target/release/aghandoff import config --help
+          ./target/release/aghandoff usage setup --help
+          ./target/release/aghandoff usage list --help
 
       - name: Check Clippy
         run: cargo +1.85.1 clippy --all-targets --locked -- -D warnings

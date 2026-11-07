@@ -22,6 +22,9 @@ The environment variables and resume flags are official Claude features. Sharing
   .aghandoff-root                        # Store format marker
   registry.json                          # Profile labels and workspace paths
   registry.lock                          # Short registration operations
+  usage/
+    personal.json                        # Only observed rate-limit counters and time
+    personal.lock                        # Status-line callback exclusion
   accounts/
     personal/                            # CLAUDE_CONFIG_DIR
       active.lock                        # Login and launch exclusion
@@ -88,11 +91,19 @@ SIGKILL or a wrapper crash can leave a child running after its lock is released.
 ## Deferred work
 
 - Live synchronization and conflict-aware updates of imported personal configuration.
-- Usage snapshots from the official status line, including observation times and explicit unknown states.
+- Background usage polling and live dashboards beyond local observations.
 - Codex support and cross-agent transcript conversion.
 - Stronger process tracking and recovery after wrapper crashes.
 
 Token management, direct keychain access, in-process account replacement, and automatic rotation are outside the initial scope.
+
+## Usage observations
+
+`usage setup` previews a status-line command; `--apply` installs it only when the profile has no conflicting custom status line. `usage disable` removes only the exact generated entry. Both use the account's foreground lock and preserve unrelated settings.
+
+Claude passes JSON to a hidden `usage record` callback. The callback verifies `CLAUDE_CONFIG_DIR`, bounds input to 1 MiB, and stores only 5-hour/7-day percentages, reset timestamps, and the local observation time. A separate usage lock allows collection during managed sessions. Raw payloads, account identity, transcript paths, costs, and credentials are not persisted. Login attempts invalidate the previous observation.
+
+`usage list` reads local snapshots, with explicit unknown, fresh, stale, expired, and clock-skew states. It never infers zero usage from absent or expired data and never polls the server. See the [usage guide](usage.md) and [remaining work](roadmap.md).
 
 ## Acceptance questions
 

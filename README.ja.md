@@ -41,19 +41,25 @@ macOSでビルド時にリンカーが見つからない場合は、`xcode-selec
 すでに[mise](https://mise.jdx.dev/lang/rust.html)を使っている場合は、Rustもmiseで管理できます。miseは内部でrustupを使用し、必要に応じて導入するため、rustupを別途インストールする必要はありません。
 
 ```sh
-mise use -g rust@stable
-mise exec -- rustc --version
-mise exec -- cargo --version
+mise install rust@stable
+mise exec rust@stable -- rustc --version
+mise exec rust@stable -- cargo --version
 ```
 
-`-g`は、このユーザーの既定のRustバージョンを設定します。以下の手順でリポジトリをcloneし、ディレクトリへ移動した後は、次のコマンドでaghandoffをインストール・確認できます。
+これらのコマンドは、グローバル設定やプロジェクトの既定バージョンを変更しません。以下の手順でリポジトリをcloneし、ディレクトリへ移動した後は、次のコマンドでaghandoffをインストール・確認できます。
 
 ```sh
-mise exec -- cargo install --path . --locked
-mise exec -- aghandoff --help
+mise exec rust@stable -- cargo install --path . --locked
+mise exec rust@stable -- aghandoff --help
 ```
 
-シェルでmiseを有効化していない場合は、この後の`aghandoff`コマンドにも`mise exec --`を付けてください。miseは必須ではなく、rustupのみでも利用できます。
+`No version is set for shim: cargo` と表示された場合も、上記のように `rust@stable` を明示してください。cloneせずGitHubから直接インストール・更新する場合は、次のコマンドを使えます。
+
+```sh
+mise exec rust@stable -- cargo install --git https://github.com/rrhaya/aghandoff.git --locked --force
+```
+
+シェルでmiseを有効化していない場合は、この後の `aghandoff` コマンドにも `mise exec rust@stable --` を付けてください。個人の既定バージョンも設定したい場合は `mise use -g rust@stable` が使えます。miseは必須ではなく、rustupのみでも利用できます。
 
 </details>
 
@@ -116,6 +122,29 @@ aghandoff import config personal --instructions ~/.claude/CLAUDE.md --skill ~/.c
 
 取り込みは一度に512 MiB・10,000ファイルまでです。既存ファイルとの衝突や登録済みIDがあれば、選択全体を中止します。新しい作業領域では、更新日時が最新の取り込み済み会話を `continue` の対象にします。既に対象がある場合は変更しません。JSONL以外への書き出し、外部のファイル復元用チェックポイント、実行中のプロセス、サーバー側状態は移行しません。[詳細な取り込み手順](docs/import.md)（英語）を参照してください。
 
+## アカウント別の使用量
+
+Claudeの公式ステータスラインから使用量を収集するには、プロファイルごとに有効化します。
+
+```sh
+aghandoff usage setup personal
+aghandoff usage setup personal --apply
+aghandoff usage setup second --apply
+```
+
+既定はプレビューです。適用後にaghandoff経由のClaudeを再起動し、メッセージを送信してから確認してください。
+
+```sh
+aghandoff usage list
+aghandoff usage list --json
+```
+
+5時間・7日間の使用率、リセット予定時刻、取得からの経過時間を表示します。未取得の値は `unknown`、取得から5分を超えた値は `stale`、リセット時刻を過ぎた値は `expired` と区別します。欠損や期限切れを使用率0%として扱いません。認証情報を直接読まず、サーバーへの独自問い合わせも行いません。
+
+既存の独自ステータスラインは上書きしません。再ログインすると、以前のアカウントの使用量は消去されます。収集を止める場合は `aghandoff usage disable personal --apply` を使ってください。保存済みの値は残り、時間経過に応じて古い値として表示されます。
+
+これは最後に取得した値の一覧で、リアルタイムの残量確認やアカウントの自動切り替えは行いません。値の提供有無は契約・Claudeの応答によります。最新状態はClaudeの `/usage` でも確認してください。[詳しい仕様](docs/usage.md)（英語）を参照してください。
+
 ## コマンド
 
 | コマンド | 用途 |
@@ -130,6 +159,9 @@ aghandoff import config personal --instructions ~/.claude/CLAUDE.md --skill ~/.c
 | `sessions <workspace>` | セッションIDと起動情報を表示 |
 | `import sessions <workspace> <account> --from <dir>` | 既存の会話をプレビュー。`--apply` でコピー |
 | `import config <account> [options]` | 個人の指示・スキル・ルール・基本設定を選択して取り込み |
+| `usage setup <account> [--apply]` | 使用量収集のプレビュー・有効化 |
+| `usage disable <account> [--apply]` | aghandoffのステータスラインの解除 |
+| `usage list [--json]` | 登録プロファイルごとの最後に取得した使用量を表示 |
 
 名前は小文字英数字・`-`・`_` を使い、先頭は英数字、長さは48文字以内です。
 
@@ -156,9 +188,10 @@ aghandoff --claude-bin /path/to/claude status personal
 
 - Claudeサブスクリプションのログイン、aghandoffで作成したセッション、取り込んだネイティブ形式の会話履歴。
 - Claudeを終了した後のアカウント変更。管理対象はforeground sessionのみ。
-- 選択した既存履歴と個人設定の取り込み。Codex対応とアカウント別の使用量表示は今後の対象です。
+- 選択した既存履歴と個人設定の取り込み、任意のアカウント別使用量収集。
+- Codex対応、使用量のリアルタイム取得、ビルド済みバイナリの配布は未対応です。[残タスク](docs/roadmap.md)を参照してください。
 
-会話の切り替えにはaghandoffの `run` / `resume` を使ってください。Claude内の `/clear` / `/resume` によるセッション変更は追跡しません。使用量は当面Claudeの `/usage` で確認できます。
+会話の切り替えにはaghandoffの `run` / `resume` を使ってください。Claude内の `/clear` / `/resume` によるセッション変更は追跡しません。最新の使用量はClaudeの `/usage`、最後に取得した値の一覧は `aghandoff usage list` で確認できます。
 
 文脈の再開は、Claudeの履歴保存期間やアカウント・組織の制約に従います。実行中のツール・プロセスやサーバー側キャッシュは引き継ぎません。プロファイル間での保存先共有は独自の統合方式で、実際のCLIによる確認が必要です。
 
@@ -171,11 +204,11 @@ cargo test --all-targets --locked
 cargo clippy --all-targets --locked -- -D warnings
 ```
 
-fake Claude CLIと合成データを使った統合テストを24件用意しています。プロファイルの分離、会話・メモリの共有、再開失敗、プロセスの排他、履歴移行、個人設定の選択、取り込み先との衝突、リソース制限を対象としています。
+fake Claude CLIと合成データを使った統合テストを30件、ユニットテストを2件用意しています。プロファイルの分離、会話・メモリの共有、再開失敗、プロセスの排他、履歴移行、個人設定の選択、取り込み先との衝突、リソース制限、使用量の収集・表示を対象としています。
 
 `Cargo.lock`でCIに使用する依存バージョンを固定しています。
 
-CIはRust 1.85.1を使い、Ubuntu 24.04とmacOS 14でリリースビルド・整形・Clippy・すべての統合テストを確認します。実アカウント間の引き継ぎと、実際のClaudeでの取り込み履歴の再開は手動検証が必要です。
+CIはRust 1.85.1を使い、Ubuntu 24.04とmacOS 15でリリースビルド・整形・Clippy・すべての統合テストを確認します。実アカウント間の引き継ぎ、実際のClaudeでの取り込み履歴の再開、使用量の収集は手動検証が必要です。
 
 [設計メモ](docs/design.md) · [手動検証手順](docs/manual-test.md)（英語）
 
