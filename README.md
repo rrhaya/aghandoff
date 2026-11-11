@@ -196,7 +196,7 @@ cargo clippy --all-targets --locked -- -D warnings
 python3 -B -m unittest discover -s tests -p test_distribution.py -v
 ```
 
-The Rust suite includes 30 offline integration tests and 2 unit tests using a fake Claude CLI and synthetic data. There are also 15 distribution tests for packaging, integrity checks, installation, and draft-first publication. The [package workflow](.github/workflows/package.yml) additionally installs actual compiled binaries on all four native targets without Rust on PATH.
+The Rust suite includes 30 offline integration tests and 2 unit tests using a fake Claude CLI and synthetic data. There are also 16 distribution tests for packaging, integrity checks, installation, and draft-first publication. The [package workflow](.github/workflows/package.yml) additionally installs actual compiled binaries on all four native targets without Rust on PATH.
 
 `Cargo.lock` pins the dependency versions used in CI.
 

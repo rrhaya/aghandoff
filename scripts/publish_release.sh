@@ -28,7 +28,9 @@ require manual verification. macOS binaries are not Developer ID notarized.
 NOTES
 # An existing release or tag is never force-updated. A failed upload leaves a
 # draft for inspection; it never exposes an incomplete public release.
-gh release create "$tag" --repo rrhaya/aghandoff --target "$GITHUB_SHA" --draft \
+gh api --method POST repos/rrhaya/aghandoff/git/refs \
+    -f "ref=refs/tags/$tag" -f "sha=$GITHUB_SHA" --silent
+gh release create "$tag" --repo rrhaya/aghandoff --verify-tag --target "$GITHUB_SHA" --draft \
     --title "aghandoff $tag" --notes-file "$notes" \
     "$directory"/*.tar.gz "$directory"/*.sha256 "$directory/SHA256SUMS"
 gh release edit "$tag" --repo rrhaya/aghandoff --draft=false --latest

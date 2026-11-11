@@ -276,7 +276,7 @@ class Distribution(unittest.TestCase):
             prepare_release.prepare(ROOT, self.output, COMMIT)
 
     def publish(self, fail_create=False, repository="rrhaya/aghandoff", ref="refs/heads/main",
-                token="synthetic-job-token"):
+                token="synthetic-job-token", fail_tag=False):
         fake_bin = self.root / "publish bin"
         fake_bin.mkdir(exist_ok=True)
         log = self.root / "publish calls"
@@ -284,7 +284,8 @@ class Distribution(unittest.TestCase):
         fake.write_text("#!/usr/bin/env python3\nimport json,sys\n"
                         "with open(" + repr(str(log)) + ", 'a') as stream: "
                         "stream.write(json.dumps(sys.argv[1:]) + '\\n')\n"
-                        + ("sys.exit(7)\n" if fail_create else ""))
+                        + ("if sys.argv[1:3] == ['release', 'create']: sys.exit(7)\n" if fail_create else "")
+                        + ("if sys.argv[1:2] == ['api']: sys.exit(7)\n" if fail_tag else ""))
         fake.chmod(0o700)
         env = {"PATH": str(fake_bin) + ":" + SYSTEM_PATH, "TMPDIR": str(self.root),
                "RUNNER_TEMP": str(self.root), "GITHUB_ACTIONS": "true",
@@ -300,19 +301,31 @@ class Distribution(unittest.TestCase):
         self.release_assets()
         result, calls = self.publish()
         self.require_success(result)
-        self.assertEqual([call[:2] for call in calls], [["release", "create"], ["release", "edit"]])
-        self.assertIn("--draft", calls[0])
-        self.assertIn("--draft=false", calls[1])
-        self.assertIn(COMMIT, calls[0])
-        self.assertIn("rrhaya/aghandoff", calls[0])
+        self.assertEqual([call[:2] for call in calls],
+                         [["api", "--method"], ["release", "create"], ["release", "edit"]])
+        self.assertIn("POST", calls[0])
+        self.assertIn("ref=refs/tags/v" + self.version, calls[0])
+        self.assertIn("sha=" + COMMIT, calls[0])
+        self.assertIn("--draft", calls[1])
+        self.assertIn("--verify-tag", calls[1])
+        self.assertIn("--draft=false", calls[2])
+        self.assertIn(COMMIT, calls[1])
+        self.assertIn("rrhaya/aghandoff", calls[1])
         self.assertNotIn("--clobber", " ".join(sum(calls, [])))
 
     def test_failed_draft_upload_never_runs_the_publish_command(self):
         self.release_assets()
         result, calls = self.publish(fail_create=True)
         self.require_failure(result)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[1][:2], ["release", "create"])
+
+    def test_existing_or_failed_tag_creation_stops_before_release_creation(self):
+        self.release_assets()
+        result, calls = self.publish(fail_tag=True)
+        self.require_failure(result)
         self.assertEqual(len(calls), 1)
-        self.assertEqual(calls[0][:2], ["release", "create"])
+        self.assertEqual(calls[0][:2], ["api", "--method"])
 
     def test_publisher_refuses_other_repositories_and_branches_before_any_write(self):
         self.release_assets()

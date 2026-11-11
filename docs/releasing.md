@@ -24,10 +24,10 @@ After activation, a main push changing `Cargo.toml` or the release workflow, or 
 
 1. Downloads only this run's artifacts, treating digest mismatches as errors.
 2. Requires exactly four archives and four sidecars; validates all hashes, member types, versions, targets, and source SHAs before writing `SHA256SUMS`.
-3. Creates a **draft** `v<package-version>` Release targeting that source SHA and uploads all assets.
+3. Atomically creates the `v<package-version>` tag at that exact source SHA, refusing existing tags; creates a **draft** Release for the verified tag and uploads all assets.
 4. Publishes the draft only when every upload succeeds.
 
-The first planned release is `v0.3.1`. Existing releases and tags are not overwritten or force-updated. Upload failures leave a draft for inspection; verify its source and assets before retrying. Alter or delete existing releases/tags only with explicit authorization.
+The first planned release is `v0.3.1`. Existing releases and tags are not overwritten or force-updated. Tag-creation failures stop before Release creation. Later failures can leave the newly created tag and a draft for inspection; verify their source and assets before retrying. Alter or delete existing releases/tags only with explicit authorization.
 
 Reverting the activation commit stops automatic publication and removes its write permission. Published assets and tags remain until separately handled.
 

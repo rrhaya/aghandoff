@@ -218,7 +218,7 @@ cargo clippy --all-targets --locked -- -D warnings
 python3 -B -m unittest discover -s tests -p test_distribution.py -v
 ```
 
-Rustの統合テスト30件・ユニットテスト2件に加え、配布・整合性検証・インストール・ドラフト公開順序を確認するテスト15件を用意しています。[配布用CI](.github/workflows/package.yml)では4種類の実バイナリをビルドし、RustをPATHから外して導入・起動確認します。
+Rustの統合テスト30件・ユニットテスト2件に加え、配布・整合性検証・インストール・ドラフト公開順序を確認するテスト16件を用意しています。[配布用CI](.github/workflows/package.yml)では4種類の実バイナリをビルドし、RustをPATHから外して導入・起動確認します。
 
 `Cargo.lock`でCIに使用する依存バージョンを固定しています。
 

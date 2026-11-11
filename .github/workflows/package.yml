@@ -90,7 +90,7 @@ jobs:
         env:
           SOURCE_COMMIT: ${{ github.sha }}
         run: |
-          gh release create smoke --draft --target "$SOURCE_COMMIT" --title smoke --notes smoke --help > /dev/null
+          gh release create smoke --verify-tag --draft --target "$SOURCE_COMMIT" --title smoke --notes smoke --help > /dev/null
           gh release edit smoke --draft=false --latest --help > /dev/null
       - name: Upload the combined checksum manifest
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
