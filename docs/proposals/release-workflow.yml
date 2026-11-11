@@ -1,0 +1,45 @@
+# Proposal only. This is not executed while it remains under docs/proposals/.
+# Activation requires approval of publish.contents:write, then moving this file
+# to .github/workflows/release.yml. Build jobs retain contents:read.
+name: Publish release
+
+on:
+  push:
+    branches: [main]
+    paths: ['Cargo.toml', '.github/workflows/release.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/package.yml
+  publish:
+    if: github.repository == 'rrhaya/aghandoff' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the exact source commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download this run's tested packages
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          pattern: aghandoff-*
+          path: release-assets
+          merge-multiple: true
+          digest-mismatch: error
+      - name: Validate every artifact and publish the draft only after upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: rrhaya/aghandoff
+        run: sh scripts/publish_release.sh release-assets

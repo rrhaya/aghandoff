@@ -9,11 +9,10 @@ A Rust CLI for using multiple Claude Code subscription accounts with separate lo
 ## Requirements
 
 - macOS or Linux
-- Git
-- Rust 1.85+ with Cargo
 - Claude Code 2.1.268+ (stable), with access to a Claude subscription
+- For source installation: Git and Rust 1.85+ with Cargo
 
-Rust is needed to build and install aghandoff. The installed binary runs without the Rust toolchain. Use the latest stable Claude Code for initial testing.
+Rust is needed for source installation. Prebuilt CI packages for macOS and Linux, on Intel and ARM64, can be installed without Rust: [binary installation guide](docs/install-binary.md). Use the latest stable Claude Code for initial testing.
 
 <details>
 <summary>Install Rust with rustup</summary>
@@ -181,7 +180,7 @@ aghandoff --claude-bin /path/to/claude status personal
 - Claude subscription logins, sessions created through aghandoff, and imported native transcripts.
 - Account changes after exiting Claude; managed foreground sessions only.
 - Selected local history and personal configuration import, plus opt-in account usage snapshots.
-- Codex support, live usage polling, and binary distribution are not implemented. See the [roadmap](docs/roadmap.md).
+- Prebuilt CI packages are available; public Release publishing is prepared but not enabled. Codex support and live usage polling are not implemented. See the [roadmap](docs/roadmap.md).
 
 Use aghandoff's `run` and `resume` to change conversations. Session changes made with Claude's `/clear` or `/resume` are not tracked. Use Claude's `/usage` to verify current limits; `aghandoff usage list` displays local observations.
 
@@ -194,9 +193,10 @@ cargo fmt
 cargo fmt --check
 cargo test --all-targets --locked
 cargo clippy --all-targets --locked -- -D warnings
+python3 -B -m unittest discover -s tests -p test_distribution.py -v
 ```
 
-The suite includes 30 offline integration tests and 2 unit tests using a fake Claude CLI and synthetic data. It covers profile separation, shared transcripts and memory, resume failures, process locking, history migration, configuration selection, import conflicts, resource limits, and usage snapshots.
+The Rust suite includes 30 offline integration tests and 2 unit tests using a fake Claude CLI and synthetic data. There are also 16 distribution tests for packaging, integrity checks, installation, and draft-first publication. The [package workflow](.github/workflows/package.yml) additionally installs actual compiled binaries on all four native targets without Rust on PATH.
 
 `Cargo.lock` pins the dependency versions used in CI.
 

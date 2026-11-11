@@ -5,8 +5,8 @@
 | Multi-account Claude sessions | Implemented, offline tested | Manual A → B → A acceptance test on real accounts |
 | Existing conversations and personal configuration | Implemented, offline tested | Resume a synthetic native transcript saved before aghandoff; confirm instructions and skills load |
 | Account usage | Opt-in local status-line snapshots implemented | Confirm live payload availability, profile attribution, and unchanged normal Claude setup |
-| Installation | Source installation with Rust; rustup and optional mise documented | Verify installation on a fresh terminal; configure a Rust version if using mise shims |
-| Binary distribution | Not implemented | Build downloadable binaries with checksums and release/install smoke tests |
+| Installation | Source installation and checked local-archive installer | Verify on the user's terminal; keep the executable path stable for usage hooks |
+| Binary distribution | Four native CI packages with checksums and install smoke tests | Approve the job-scoped publication permission, activate the release workflow, and publish v0.3.1 |
 | Codex | Not implemented | Add a provider boundary, isolated account configuration, native-session persistence, and synthetic tests before live verification |
 | Imported configuration updates | Snapshots only | Design explicit conflict handling and update previews |
 | Crash recovery | Foreground locks and signal forwarding | Track orphaned processes after wrapper crashes and recover interrupted imports |
