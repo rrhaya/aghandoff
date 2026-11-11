@@ -9,11 +9,24 @@ Claude Codeのアカウントを替えて、同じ会話を続ける。
 ## 必要なもの
 
 - macOSまたはLinux
-- Git
-- Rust 1.85以上（Cargoを含む）
 - Claude Code 2.1.268以上のstable版と、利用可能なClaudeサブスクリプション
+- ソースからインストールする場合：Git、Rust 1.85以上（Cargoを含む）
 
-Rustはaghandoffのビルド・インストール時に必要です。インストール済みの実行ファイルを使う際には不要です。Claude Codeは初回の確認に最新のstable版を使ってください。
+Rustが必要なのはソースからインストールする場合です。macOS・LinuxのIntel／ARM64向けCIビルドは、Rustなしでインストールできます。[バイナリ導入手順](docs/install-binary.md)（英語）を参照してください。Claude Codeは初回の確認に最新のstable版を使ってください。
+
+CIの配布物は[Package binaries](https://github.com/rrhaya/aghandoff/actions/workflows/package.yml)の成功したmain実行から取得できます。ダウンロードにはGitHubへのログインが必要で、保持期間は14日です。対象環境のZIPを展開し、`.tar.gz` と対応する `.sha256` を同じビルドから用意してください。公開Releaseへの自動配置はまだ有効化していません。
+
+Apple Siliconでの導入例：
+
+```sh
+curl -q --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/rrhaya/aghandoff/main/scripts/install.sh -o aghandoff-install.sh
+sh aghandoff-install.sh --archive ./aghandoff-aarch64-apple-darwin.tar.gz --checksum ./aghandoff-aarch64-apple-darwin.tar.gz.sha256
+"$HOME/.local/bin/aghandoff" --version
+```
+
+チェックサム・内容・実行環境・バージョンを検証後、既定では `~/.local/bin/aghandoff` に配置します。必要に応じてそのディレクトリをPATHへ追加してください。既存バイナリの更新には `--force` を明示し、シンボリックリンクは置換しません。アカウント設定や履歴は変更しません。使用量のステータスラインは実行ファイルのパスを保持するため、更新時も同じ配置先を使ってください。
+
+macOS 15、Ubuntu 22.04でIntel／ARM64それぞれを検証対象としています。LinuxはGNU/glibc向けで、musl/Alpine向けはありません。macOS用はDeveloper IDによる公証済みバイナリではありません。端末のポリシーで実行できない場合はソースから導入してください。
 
 <details>
 <summary>rustupでRustをインストールする</summary>
@@ -189,7 +202,7 @@ aghandoff --claude-bin /path/to/claude status personal
 - Claudeサブスクリプションのログイン、aghandoffで作成したセッション、取り込んだネイティブ形式の会話履歴。
 - Claudeを終了した後のアカウント変更。管理対象はforeground sessionのみ。
 - 選択した既存履歴と個人設定の取り込み、任意のアカウント別使用量収集。
-- Codex対応、使用量のリアルタイム取得、ビルド済みバイナリの配布は未対応です。[残タスク](docs/roadmap.md)を参照してください。
+- CIでビルド済みバイナリを配布します。公開Releaseの自動配置は準備済み・未有効化です。Codex対応と使用量のリアルタイム取得は未対応です。[残タスク](docs/roadmap.md)を参照してください。
 
 会話の切り替えにはaghandoffの `run` / `resume` を使ってください。Claude内の `/clear` / `/resume` によるセッション変更は追跡しません。最新の使用量はClaudeの `/usage`、最後に取得した値の一覧は `aghandoff usage list` で確認できます。
 
@@ -202,9 +215,10 @@ cargo fmt
 cargo fmt --check
 cargo test --all-targets --locked
 cargo clippy --all-targets --locked -- -D warnings
+python3 -B -m unittest discover -s tests -p test_distribution.py -v
 ```
 
-fake Claude CLIと合成データを使った統合テストを30件、ユニットテストを2件用意しています。プロファイルの分離、会話・メモリの共有、再開失敗、プロセスの排他、履歴移行、個人設定の選択、取り込み先との衝突、リソース制限、使用量の収集・表示を対象としています。
+Rustの統合テスト30件・ユニットテスト2件に加え、配布・整合性検証・インストール・ドラフト公開順序を確認するテスト15件を用意しています。[配布用CI](.github/workflows/package.yml)では4種類の実バイナリをビルドし、RustをPATHから外して導入・起動確認します。
 
 `Cargo.lock`でCIに使用する依存バージョンを固定しています。
 
