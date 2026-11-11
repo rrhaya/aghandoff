@@ -275,7 +275,8 @@ class Distribution(unittest.TestCase):
         with self.assertRaises(ValueError):
             prepare_release.prepare(ROOT, self.output, COMMIT)
 
-    def publish(self, fail_create=False, repository="rrhaya/aghandoff", ref="refs/heads/main"):
+    def publish(self, fail_create=False, repository="rrhaya/aghandoff", ref="refs/heads/main",
+                token="synthetic-job-token"):
         fake_bin = self.root / "publish bin"
         fake_bin.mkdir(exist_ok=True)
         log = self.root / "publish calls"
@@ -288,6 +289,8 @@ class Distribution(unittest.TestCase):
         env = {"PATH": str(fake_bin) + ":" + SYSTEM_PATH, "TMPDIR": str(self.root),
                "RUNNER_TEMP": str(self.root), "GITHUB_ACTIONS": "true",
                "GITHUB_REPOSITORY": repository, "GITHUB_REF": ref, "GITHUB_SHA": COMMIT}
+        if token is not None:
+            env["GH_TOKEN"] = token
         result = subprocess.run(["/bin/sh", str(ROOT / "scripts/publish_release.sh"), str(self.output)],
                                 env=env, capture_output=True, text=True)
         calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
@@ -319,6 +322,10 @@ class Distribution(unittest.TestCase):
             self.require_failure(result)
             self.assertEqual(calls, [])
             self.assertFalse((self.output / "SHA256SUMS").exists())
+        result, calls = self.publish(token=None)
+        self.require_failure(result, "explicit job token")
+        self.assertEqual(calls, [])
+        self.assertFalse((self.output / "SHA256SUMS").exists())
 
 
 if __name__ == "__main__":

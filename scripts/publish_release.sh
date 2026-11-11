@@ -4,6 +4,10 @@ set -eu
 [ "${GITHUB_ACTIONS:-}" = true ] || { echo 'publishing requires GitHub Actions' >&2; exit 1; }
 [ "${GITHUB_REPOSITORY:-}" = rrhaya/aghandoff ] || { echo 'unexpected repository' >&2; exit 1; }
 [ "${GITHUB_REF:-}" = refs/heads/main ] || { echo 'publishing requires main' >&2; exit 1; }
+[ -n "${GH_TOKEN:-}" ] || { echo 'publishing requires an explicit job token' >&2; exit 1; }
+GH_HOST=github.com
+GH_REPO=rrhaya/aghandoff
+export GH_HOST GH_REPO
 [ "$#" -eq 1 ] || { echo 'pass the artifact directory' >&2; exit 1; }
 directory=$(cd "$1" && pwd -P)
 root=$(CDPATH= cd "$(dirname "$0")/.." && pwd -P)
