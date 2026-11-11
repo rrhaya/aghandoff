@@ -2,7 +2,7 @@
 
 ## Active build workflow
 
-`Package binaries` builds and tests macOS Intel/ARM64 and Linux GNU Intel/ARM64 natively. It runs the Rust and distribution tests and installs each actual release binary with `PATH=/usr/bin:/bin`. It uploads only the archive and SHA-256 sidecar. Active jobs retain `contents: read`; checkout does not persist credentials.
+`Package binaries` builds and tests macOS Intel/ARM64 and Linux GNU Intel/ARM64 natively. It runs the Rust and distribution tests and installs each actual release binary with `PATH=/usr/bin:/bin`. It uploads only the archive and SHA-256 sidecar. A final read-only job downloads the four outputs, checks their source SHAs and integrity, and uploads a separate combined manifest. Active jobs retain `contents: read`; checkout does not persist credentials.
 
 Packages contain exactly `aghandoff`, `LICENSE`, and `BUILD-INFO`. Archive owner names and timestamps are fixed. Package, Cargo, and executable versions must match; the recorded source is the workflow's exact `github.sha`. This normalizes archive metadata, without claiming independently reproducible compiler output.
 
